@@ -1,0 +1,16 @@
+[package]
+name = "quantized-interactions"
+description = "Cellular automata"
+version = "0.1.0"
+edition = "2024"
+authors = ["Jeroen van Maanen"]
+readme = "README.md"
+homepage = "https://github.com/jeroenvanmaanen/quantized-interactions"
+repository = "https://github.com/jeroenvanmaanen/quantized-interactions"
+license = "MIT"
+
+[dependencies]
+anyhow = "^1.0.100"
+env_logger = "^0.11.3"
+log = "^0.4.21"
+uuid = { version = "^1.19.0", features = [ "v4" ] }

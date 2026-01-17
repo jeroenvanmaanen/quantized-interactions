@@ -1,0 +1,155 @@
+use anyhow::{Result, anyhow};
+use log::trace;
+use std::{
+    collections::{HashMap, HashSet},
+    fmt::Debug,
+    hash::Hash,
+    rc::Rc,
+    sync::{RwLock, RwLockReadGuard},
+};
+use uuid::Uuid;
+
+pub trait Generation: Hash + Eq + PartialEq + Debug + Clone {
+    fn successor(&self) -> Self;
+}
+pub trait State: Debug + Clone {
+    type Gen: Generation;
+
+    fn update(cell: &Cell<Self>, generation: &Self::Gen) -> Result<Self>;
+    fn to_char(&self) -> char;
+}
+
+impl Generation for u32 {
+    fn successor(&self) -> Self {
+        self + 1
+    }
+}
+
+#[derive(Debug)]
+pub struct Cell<S: State>(Rc<InnerCell<S>>);
+
+impl<S: State> Clone for Cell<S> {
+    fn clone(&self) -> Self {
+        Self(self.0.clone())
+    }
+}
+
+impl<S: State> Hash for Cell<S> {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.0.id.hash(state);
+    }
+}
+
+impl<S: State> PartialEq for Cell<S> {
+    fn eq(&self, other: &Self) -> bool {
+        self.0.id == other.0.id
+    }
+}
+impl<S: State> Eq for Cell<S> {}
+
+impl<S: State> Cell<S> {
+    pub fn new(generation: S::Gen, state: S) -> Self {
+        Cell(Rc::new(InnerCell::new(generation, state)))
+    }
+
+    pub fn id(&self) -> &Uuid {
+        &self.0.id
+    }
+
+    pub fn state(&self, generation: &S::Gen) -> Option<S> {
+        let guard = self.0.state_map.read().ok();
+        guard.map(|m| m.get(generation).map(Clone::clone)).flatten()
+    }
+
+    pub fn has_state(&self, generation: &S::Gen) -> bool {
+        let guard = self.0.state_map.read().ok();
+        guard.map(|m| m.get(generation).is_some()).unwrap_or(false)
+    }
+
+    pub fn neighbors(&self) -> Result<RwLockReadGuard<'_, HashSet<Cell<S>>>> {
+        self.0.neighbors.read().map_err(|e| {
+            anyhow!(
+                "Could not get read lock for neighbors of: {:?}: {:?}",
+                self.0.id,
+                e
+            )
+        })
+    }
+
+    pub fn join(&self, other: &Self) -> Result<()> {
+        connect_cells(self, other)?;
+        connect_cells(other, self)?;
+        trace!("Joined: [{:?}] <=> [{:?}]", self.0.id, other.0.id);
+        Ok(())
+    }
+
+    pub fn update(&self, generation: &S::Gen) -> Result<()> {
+        let next_gen = generation.successor();
+        if self.has_state(&next_gen) {
+            return Ok(());
+        }
+        let new_state = S::update(self, &generation)?;
+        let mut guard = self
+            .0
+            .state_map
+            .write()
+            .map_err(|e| anyhow!("Unable to obtain write lock for cell: {e:?}"))?;
+        guard.insert(next_gen, new_state);
+        Ok(())
+    }
+}
+
+fn connect_cells<S: State>(this: &Cell<S>, that: &Cell<S>) -> Result<()> {
+    let mut neighbors_lock = this
+        .0
+        .neighbors
+        .write()
+        .map_err(|e| anyhow!("Could not get write lock: {e}"))?;
+    neighbors_lock.insert(that.clone());
+    Ok(())
+}
+
+struct InnerCell<S: State> {
+    id: Uuid,
+    state_map: RwLock<HashMap<S::Gen, S>>,
+    neighbors: RwLock<HashSet<Cell<S>>>,
+}
+
+impl<S: State> InnerCell<S> {
+    pub fn new(generation: S::Gen, state: S) -> Self {
+        let id = Uuid::new_v4();
+        let mut state_map = HashMap::new();
+        state_map.insert(generation, state);
+        let state_map = RwLock::new(state_map);
+        let neighbors = RwLock::new(HashSet::new());
+        InnerCell {
+            id,
+            state_map,
+            neighbors,
+        }
+    }
+
+    fn id(&self) -> Uuid {
+        self.id
+    }
+}
+
+impl<S: State> Debug for InnerCell<S> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let neighbors = &self
+            .neighbors
+            .read()
+            .ok()
+            .map(|n| {
+                n.iter()
+                    .map(|c| c.0.id().clone())
+                    .collect::<HashSet<Uuid>>()
+            })
+            .unwrap_or_else(|| HashSet::<Uuid>::new());
+        f.debug_struct("InnerCell")
+            .field("id", &self.id)
+            .field("state_map", &self.state_map.read().ok())
+            .field("neighbors", neighbors)
+            .finish()
+    }
+}
