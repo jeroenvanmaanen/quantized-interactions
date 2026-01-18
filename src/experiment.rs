@@ -87,7 +87,7 @@ pub fn example() -> Result<()> {
         width,
         height,
         generation.clone(),
-        |x: usize, y: usize| Rotate::new(experiment_init(x, y)),
+        |v: &[usize]| Rotate::new(experiment_init(v[0], v[1])),
     )?;
     info!("Origin: [{origin:?}]");
     torus.info(&generation);

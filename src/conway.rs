@@ -58,7 +58,7 @@ pub fn example() -> Result<()> {
         width,
         height,
         generation.clone(),
-        |x: usize, y: usize| Conway::new(y == 2 && (x >= 1 && x <= 3)),
+        |v: &[usize]| Conway::new(v[1] == 2 && (v[0] >= 1 && v[0] <= 3)),
     )?;
     info!("Origin: [{origin:?}]");
     torus.info(&generation);

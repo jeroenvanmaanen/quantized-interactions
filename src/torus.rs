@@ -31,15 +31,22 @@ impl<S: State> Torus<S> {
     ) -> Result<Torus<S>>
     where
         C: Into<Cell<S>>,
-        F: Fn(usize, usize) -> S,
+        F: Fn(&[usize]) -> S,
     {
-        let mut cells = Vec::with_capacity(width * height);
-        for x in 0..width {
-            for y in 0..height {
-                let state = initial_state(x, y);
-                cells.push(Cell::new(initial_gen.clone(), state));
-            }
+        let dimensions = [width, height];
+        let mut cardinality = 1usize;
+        for i in 0..dimensions.len() {
+            cardinality *= dimensions[i];
         }
+        let mut cells = Vec::with_capacity(cardinality);
+        let mut co_ordinates = Vec::new();
+        create_cells(
+            &mut co_ordinates,
+            &dimensions,
+            &mut cells,
+            &initial_gen,
+            &initial_state,
+        );
         cells.push(origin.into());
         cells.swap_remove(0);
         debug!("Torus: Number of cells: [{}]", cells.len());
@@ -86,6 +93,40 @@ impl<S: State> Torus<S> {
         }
         Ok(())
     }
+}
+
+fn create_cells<S: State, F>(
+    co_ordinates: &mut Vec<usize>,
+    dimensions: &[usize],
+    cells: &mut Vec<Cell<S>>,
+    initial_gen: &S::Gen,
+    initial_state: &F,
+) where
+    F: Fn(&[usize]) -> S,
+{
+    co_ordinates.push(0);
+    if dimensions.len() == 1 {
+        for i in 0..dimensions[0] {
+            co_ordinates.pop();
+            co_ordinates.push(i);
+            let state = initial_state(co_ordinates);
+            cells.push(Cell::new(initial_gen.clone(), state));
+        }
+    } else if dimensions.len() > 1 {
+        let subdimensions = &dimensions[1..];
+        for i in 0..dimensions[0] {
+            co_ordinates.pop();
+            co_ordinates.push(i);
+            create_cells(
+                co_ordinates,
+                subdimensions,
+                cells,
+                initial_gen,
+                initial_state,
+            );
+        }
+    }
+    co_ordinates.pop();
 }
 
 fn connect_touching_squares<S: State>(torus: &Torus<S>) -> Result<()> {
