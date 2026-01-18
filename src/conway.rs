@@ -55,8 +55,7 @@ pub fn example() -> Result<()> {
     let torus = Torus::new(
         origin.clone(),
         Tiling::TouchingSquares,
-        width,
-        height,
+        &[width, height],
         generation.clone(),
         |v: &[usize]| Conway::new(v[1] == 2 && (v[0] >= 1 && v[0] <= 3)),
     )?;

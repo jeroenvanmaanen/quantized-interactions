@@ -83,9 +83,8 @@ pub fn example() -> Result<()> {
     let generation = 0u32;
     let torus = Torus::new(
         origin.clone(),
-        Tiling::TouchingSquares,
-        width,
-        height,
+        Tiling::Orthogonal,
+        &[width, height],
         generation.clone(),
         |v: &[usize]| Rotate::new(experiment_init(v[0], v[1])),
     )?;
