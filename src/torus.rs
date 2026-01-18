@@ -1,7 +1,7 @@
 use anyhow::{Result, anyhow};
 use log::{debug, info, trace};
 
-use crate::cell::{Cell, Generation, State};
+use crate::cell::{Cell, State};
 
 #[allow(dead_code)]
 #[derive(Clone, Copy)]
@@ -44,16 +44,19 @@ impl<S: State> Torus<S> {
         cells.swap_remove(0);
         debug!("Torus: Number of cells: [{}]", cells.len());
 
-        match tiling {
-            Tiling::TouchingSquares => connect_touching_squares(&cells, width, height)?,
-            _ => todo!(),
-        }
         let torus = Torus {
             tiling,
             width,
             height,
             cells,
         };
+
+        match tiling {
+            Tiling::TouchingSquares => connect_touching_squares(&torus)?,
+            Tiling::AdjacentSquares => connect_adjacent_squares(&torus)?,
+            _ => todo!(),
+        }
+
         Ok(torus)
     }
 
@@ -85,11 +88,10 @@ impl<S: State> Torus<S> {
     }
 }
 
-fn connect_touching_squares<G, S>(table: &Vec<Cell<S>>, width: usize, height: usize) -> Result<()>
-where
-    G: Generation,
-    S: State<Gen = G>,
-{
+fn connect_touching_squares<S: State>(torus: &Torus<S>) -> Result<()> {
+    let table = &torus.cells;
+    let width = torus.width;
+    let height = torus.height;
     if width <= 0 || height <= 0 {
         return Err(anyhow!("Torus too small: <{width}, {height}>"));
     }
@@ -107,6 +109,31 @@ where
                                 center.join(neighbor)?;
                             }
                         }
+                    }
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+fn connect_adjacent_squares<S: State>(torus: &Torus<S>) -> Result<()> {
+    let table = &torus.cells;
+    let width = torus.width;
+    let height = torus.height;
+    if width <= 0 || height <= 0 {
+        return Err(anyhow!("Torus too small: <{width}, {height}>"));
+    }
+    for x in 0..width {
+        for y in 0..height {
+            if let Some(center) = table.get(x + y * width) {
+                let lx = x + width - 1;
+                for (bx, by) in &[(width - 1, 0), (0, height - 1), (1, 0), (0, 1)] {
+                    let xx = (lx + bx) % width;
+                    let ty = y + height - 1;
+                    let yy = (ty + by) % width;
+                    if let Some(neighbor) = table.get(xx + yy * width) {
+                        center.join(neighbor)?;
                     }
                 }
             }

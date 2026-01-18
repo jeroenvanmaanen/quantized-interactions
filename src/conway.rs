@@ -1,7 +1,10 @@
-use crate::cell::{Cell, State};
+use crate::{
+    cell::{Cell, Generation, State},
+    torus::{Tiling, Torus},
+};
 use anyhow::Result;
 // use log::debug;
-use log::trace;
+use log::{info, trace};
 
 #[derive(Clone, Debug)]
 pub struct Conway {
@@ -39,4 +42,28 @@ impl State for Conway {
     fn to_char(&self) -> char {
         if self.alive { '#' } else { ' ' }
     }
+}
+
+pub fn example() -> Result<()> {
+    let origin = Cell::new(0u32, Conway::new(false));
+    let other = Cell::new(1u32, Conway::new(true));
+    origin.join(&other)?;
+    info!("Origin: [{origin:?}]");
+    let width = 5;
+    let height = 5;
+    let generation = 0u32;
+    let torus = Torus::new(
+        origin.clone(),
+        Tiling::TouchingSquares,
+        width,
+        height,
+        generation.clone(),
+        |x: usize, y: usize| Conway::new(y == 2 && (x >= 1 && x <= 3)),
+    )?;
+    info!("Origin: [{origin:?}]");
+    torus.info(&generation);
+    torus.update_all(&0u32)?;
+    let generation = generation.successor();
+    torus.info(&generation);
+    Ok(())
 }
