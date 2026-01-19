@@ -54,7 +54,7 @@ pub fn example() -> Result<()> {
     let generation = 0u32;
     let torus = Torus::new(
         origin.clone(),
-        Tiling::TouchingSquares,
+        Tiling::OrthogonalAndDiagonal,
         &[width, height],
         generation.clone(),
         |v: &[usize]| Conway::new(v[1] == 2 && (v[0] >= 1 && v[0] <= 3)),

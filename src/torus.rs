@@ -7,9 +7,9 @@ use crate::cell::{Cell, State};
 #[derive(Clone, Copy)]
 pub enum Tiling {
     Orthogonal,
+    OrthogonalAndDiagonal,
     AdjacentTriangles,
     TouchingTriangles,
-    TouchingSquares,
     Hexagons,
 }
 
@@ -59,7 +59,7 @@ impl<S: State> Torus<S> {
 
         match tiling {
             Tiling::Orthogonal => connect_orthogonally(&torus)?,
-            Tiling::TouchingSquares => connect_touching_squares(&torus)?,
+            Tiling::OrthogonalAndDiagonal => connect_orthogonally_and_diagonally(&torus)?,
             _ => todo!(),
         }
 
@@ -73,7 +73,7 @@ impl<S: State> Torus<S> {
             Tiling::Orthogonal => {
                 orthogonal_to_strings(&self.cells, &self.dimensions, generation, &mut lines)
             }
-            Tiling::TouchingSquares => {
+            Tiling::OrthogonalAndDiagonal => {
                 orthogonal_to_strings(&self.cells, &self.dimensions, generation, &mut lines)
             }
             _ => todo!(),
@@ -125,6 +125,11 @@ fn create_cells<S: State, F>(
     }
     co_ordinates.pop();
 }
+fn connect_orthogonally_and_diagonally<S: State>(torus: &Torus<S>) -> Result<()> {
+    connect_orthogonally(torus)?;
+    connect_diagonally(torus)?;
+    Ok(())
+}
 
 fn connect_orthogonally<S: State>(torus: &Torus<S>) -> Result<()> {
     let cells = &torus.cells;
@@ -134,30 +139,76 @@ fn connect_orthogonally<S: State>(torus: &Torus<S>) -> Result<()> {
         co_ordinates.push(0);
     }
     for i in 0..cells.len() {
-        let mut j = dimensionality - 1;
-        loop {
-            co_ordinates[j] += 1;
-            if co_ordinates[j] < torus.dimensions[j] {
-                break;
-            } else {
-                co_ordinates[j] = 0;
-                if j < 1 {
-                    break;
-                }
-                j -= 1;
-            }
-        }
+        assert!(get_index(&co_ordinates, &torus.dimensions)? == i);
         let center = &cells[i];
         for k in 0..dimensionality {
+            let mut other = co_ordinates.clone();
             for d in &[torus.dimensions[k] - 1, 1] {
-                let mut other = co_ordinates.clone();
-                other[k] = (other[k] + d) % torus.dimensions[k];
-                let neighbor = &cells[get_index(&co_ordinates, &torus.dimensions)?];
+                other[k] = (co_ordinates[k] + d) % torus.dimensions[k];
+                let other_index = get_index(&other, &torus.dimensions)?;
+                trace!(
+                    "Join neighbors: ({:?}) <=> ({:?}) ~ {} <=> {}",
+                    &co_ordinates, &other, i, other_index
+                );
+                let neighbor = &cells[other_index];
                 center.join(neighbor)?;
             }
         }
+        next_co_ordinates(&mut co_ordinates, &torus.dimensions);
     }
     Ok(())
+}
+
+fn connect_diagonally<S: State>(torus: &Torus<S>) -> Result<()> {
+    let cells = &torus.cells;
+    let mut co_ordinates = Vec::<usize>::new();
+    let dimensionality = torus.dimensions.len();
+    for _ in 0..dimensionality {
+        co_ordinates.push(0);
+    }
+    for i in 0..cells.len() {
+        assert!(get_index(&co_ordinates, &torus.dimensions)? == i);
+        let center = &cells[i];
+        let corner_ids: usize = 1 << dimensionality;
+        for c in 0..corner_ids {
+            let mut corner = Vec::new();
+            let mut bits = c;
+            for k in 0..dimensionality {
+                let offset = if bits & 1 == 1 {
+                    1
+                } else {
+                    torus.dimensions[k] - 1
+                };
+                bits >>= 1;
+                corner.push((co_ordinates[k] + offset) % torus.dimensions[k])
+            }
+            let corner_index = get_index(&corner, &torus.dimensions)?;
+            trace!(
+                "Join corner co-ordinates: ({:?}) <=> ({:?}) ~ {} <=> {}",
+                &co_ordinates, &corner, i, corner_index
+            );
+            center.join(&cells[corner_index])?;
+        }
+        next_co_ordinates(&mut co_ordinates, &torus.dimensions);
+    }
+    Ok(())
+}
+
+fn next_co_ordinates(co_ordinates: &mut [usize], dimensions: &[usize]) {
+    let dimensionality = dimensions.len();
+    let mut j = 0;
+    loop {
+        co_ordinates[j] += 1;
+        if co_ordinates[j] < dimensions[j] {
+            break;
+        } else {
+            co_ordinates[j] = 0;
+            j += 1;
+            if j >= dimensionality {
+                break;
+            }
+        }
+    }
 }
 
 fn get_index(co_ordinates: &[usize], dimensions: &[usize]) -> Result<usize> {
@@ -177,35 +228,6 @@ fn get_index(co_ordinates: &[usize], dimensions: &[usize]) -> Result<usize> {
         }
     }
     Ok(result)
-}
-
-fn connect_touching_squares<S: State>(torus: &Torus<S>) -> Result<()> {
-    let table = &torus.cells;
-    let width = torus.dimensions[0];
-    let height = torus.dimensions[1];
-    if width <= 0 || height <= 0 {
-        return Err(anyhow!("Torus too small: <{width}, {height}>"));
-    }
-    for x in 0..width {
-        for y in 0..height {
-            if let Some(center) = table.get(x + y * width) {
-                let lx = x + width - 1;
-                for bx in 0..3 {
-                    let xx = (lx + bx) % width;
-                    let ty = y + height - 1;
-                    for by in 0..3 {
-                        let yy = (ty + by) % width;
-                        if xx != x || yy != y {
-                            if let Some(neighbor) = table.get(xx + yy * width) {
-                                center.join(neighbor)?;
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-    Ok(())
 }
 
 fn orthogonal_to_strings<S: State>(
