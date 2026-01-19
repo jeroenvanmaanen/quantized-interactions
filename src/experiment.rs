@@ -5,7 +5,7 @@ use crate::{
 use anyhow::Result;
 // use log::debug;
 use log::{info, trace};
-use std::f64::consts::{PI, SQRT_2};
+use std::f64::consts::PI;
 
 #[derive(Clone, Debug)]
 pub struct Rotate {
@@ -113,8 +113,4 @@ fn experiment_init(v: &[usize], dimensions: &[usize]) -> f64 {
         inner_product += xu_d * diag;
     }
     inner_product * PI
-}
-
-fn euclidean_length(x: f64, y: f64) -> f64 {
-    ((x * x) + (y * y)).sqrt()
 }
