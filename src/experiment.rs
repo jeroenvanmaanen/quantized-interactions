@@ -78,15 +78,14 @@ fn symmetric(angle: f64) -> f64 {
 
 pub fn example() -> Result<()> {
     let origin = Cell::new(0u32, Rotate::new(0.0));
-    let width = 5;
-    let height = 5;
+    let dimensions = [5, 5, 5];
     let generation = 0u32;
     let torus = Torus::new(
         origin.clone(),
         Tiling::Orthogonal,
-        &[width, height],
+        &dimensions,
         generation.clone(),
-        |v: &[usize]| Rotate::new(experiment_init(v[0], v[1])),
+        |v: &[usize]| Rotate::new(experiment_init(v, &dimensions)),
     )?;
     info!("Origin: [{origin:?}]");
     torus.info(&generation);
@@ -96,13 +95,24 @@ pub fn example() -> Result<()> {
     Ok(())
 }
 
-fn experiment_init(x: usize, y: usize) -> f64 {
-    let xx = (x as f64) - 2.0;
-    let yy = (y as f64) - 2.0;
-    let rr = euclidean_length(xx, yy);
-    let xu = xx * rr;
-    let yu = yy * rr;
-    ((xu * SQRT_2) + (yu * SQRT_2)) * PI
+fn experiment_init(v: &[usize], dimensions: &[usize]) -> f64 {
+    let dimensionality = v.len();
+    let mut sum_of_squares = 0.0;
+    let mut x = Vec::new();
+    for d in 0..dimensionality {
+        let offset = (dimensions[d] as f64) / 2.0;
+        let x_d = (v[d] as f64) - offset;
+        x.push(x_d);
+        sum_of_squares += x_d * x_d;
+    }
+    let r = sum_of_squares.sqrt();
+    let mut inner_product = 0.0;
+    let diag = 1.0 / (dimensionality as f64).sqrt();
+    for x_d in x {
+        let xu_d = x_d / r;
+        inner_product += xu_d * diag;
+    }
+    inner_product * PI
 }
 
 fn euclidean_length(x: f64, y: f64) -> f64 {

@@ -237,10 +237,8 @@ fn orthogonal_to_strings<S: State>(
     result: &mut Vec<String>,
 ) {
     let dimensionality = dimensions.len();
-    if dimensionality > 2 {
-        result.push("".to_string());
-    }
     if dimensionality > 1 {
+        result.push("".to_string());
         let mut width = 1;
         for k in 1..dimensionality {
             width = width * dimensions[k];
