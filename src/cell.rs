@@ -1,8 +1,9 @@
 use anyhow::{Result, anyhow};
+// use log::debug;
 use log::trace;
 use std::{
     collections::{HashMap, HashSet},
-    fmt::Debug,
+    fmt::{Debug, Display},
     hash::Hash,
     rc::Rc,
     sync::{RwLock, RwLockReadGuard},
@@ -12,14 +13,13 @@ use uuid::Uuid;
 pub trait Generation: Hash + Eq + PartialEq + Debug + Clone {
     fn successor(&self) -> Self;
 }
-pub trait State: Debug + Clone {
+pub trait State: Debug + Clone + Display {
     type Gen: Generation;
 
     fn update(cell: &Cell<Self>, generation: &Self::Gen) -> Result<Self>;
-    fn to_char(&self) -> char;
 }
 
-impl Generation for u32 {
+impl Generation for usize {
     fn successor(&self) -> Self {
         self + 1
     }
@@ -106,6 +106,7 @@ fn connect_cells<S: State>(this: &Cell<S>, that: &Cell<S>) -> Result<()> {
         .write()
         .map_err(|e| anyhow!("Could not get write lock: {e}"))?;
     neighbors_lock.insert(that.clone());
+    trace!("Connected {} => {}", this.id(), that.id());
     Ok(())
 }
 

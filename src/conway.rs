@@ -1,3 +1,5 @@
+use std::fmt::{Display, Write};
+
 use crate::{
     cell::{Cell, Generation, State},
     torus::{Tiling, Torus},
@@ -18,9 +20,9 @@ impl Conway {
 }
 
 impl State for Conway {
-    type Gen = u32;
+    type Gen = usize;
 
-    fn update(cell: &Cell<Conway>, generation: &u32) -> Result<Conway> {
+    fn update(cell: &Cell<Conway>, generation: &usize) -> Result<Conway> {
         trace!("Update: [{}]", cell.id());
         let this_state = cell.state(generation).map(|s| s.alive).unwrap_or(false);
         trace!("This state: [{this_state:?}]");
@@ -38,20 +40,23 @@ impl State for Conway {
         let result = Conway { alive: next_state };
         Ok(result)
     }
+}
 
-    fn to_char(&self) -> char {
-        if self.alive { '#' } else { ' ' }
+impl Display for Conway {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_char(if self.alive { '#' } else { ' ' })?;
+        Ok(())
     }
 }
 
 pub fn example() -> Result<()> {
-    let origin = Cell::new(0u32, Conway::new(false));
-    let other = Cell::new(1u32, Conway::new(true));
+    let origin = Cell::new(0usize, Conway::new(false));
+    let other = Cell::new(1usize, Conway::new(true));
     origin.join(&other)?;
     info!("Origin: [{origin:?}]");
     let width = 5;
     let height = 5;
-    let generation = 0u32;
+    let generation = 0usize;
     let torus = Torus::new(
         origin.clone(),
         Tiling::OrthogonalAndDiagonal,
@@ -61,7 +66,7 @@ pub fn example() -> Result<()> {
     )?;
     info!("Origin: [{origin:?}]");
     torus.info(&generation);
-    torus.update_all(&0u32)?;
+    torus.update_all(&0usize)?;
     let generation = generation.successor();
     torus.info(&generation);
     Ok(())

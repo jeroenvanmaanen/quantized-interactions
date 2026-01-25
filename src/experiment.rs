@@ -5,7 +5,10 @@ use crate::{
 use anyhow::Result;
 // use log::debug;
 use log::{info, trace};
-use std::f64::consts::PI;
+use std::{
+    f64::consts::PI,
+    fmt::{Display, Write},
+};
 
 #[derive(Clone, Debug)]
 pub struct Rotate {
@@ -19,9 +22,9 @@ impl Rotate {
 }
 
 impl State for Rotate {
-    type Gen = u32;
+    type Gen = usize;
 
-    fn update(cell: &Cell<Rotate>, generation: &u32) -> Result<Rotate> {
+    fn update(cell: &Cell<Rotate>, generation: &usize) -> Result<Rotate> {
         trace!("Update: [{}]", cell.id());
         let this_state = cell.state(generation).map(|s| s.angle).unwrap_or(0.0);
         trace!("This state: [{this_state:?}]");
@@ -39,11 +42,13 @@ impl State for Rotate {
         let result = Rotate { angle: next_state };
         Ok(result)
     }
+}
 
-    fn to_char(&self) -> char {
+impl Display for Rotate {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let a = normalize(self.angle);
         let u = PI / 3.0;
-        if a < u {
+        let c = if a < u {
             '-'
         } else if a < PI {
             '\\'
@@ -57,7 +62,9 @@ impl State for Rotate {
             '/'
         } else {
             '-'
-        }
+        };
+        f.write_char(c)?;
+        Ok(())
     }
 }
 
@@ -77,9 +84,9 @@ fn symmetric(angle: f64) -> f64 {
 }
 
 pub fn example() -> Result<()> {
-    let origin = Cell::new(0u32, Rotate::new(0.0));
+    let origin = Cell::new(0usize, Rotate::new(0.0));
     let dimensions = [5, 5, 5];
-    let generation = 0u32;
+    let generation = 0usize;
     let torus = Torus::new(
         origin.clone(),
         Tiling::Orthogonal,
@@ -89,7 +96,7 @@ pub fn example() -> Result<()> {
     )?;
     info!("Origin: [{origin:?}]");
     torus.info(&generation);
-    torus.update_all(&0u32)?;
+    torus.update_all(&0usize)?;
     let generation = generation.successor();
     torus.info(&generation);
     Ok(())

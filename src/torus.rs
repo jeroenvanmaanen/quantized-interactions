@@ -60,6 +60,7 @@ impl<S: State> Torus<S> {
         match tiling {
             Tiling::Orthogonal => connect_orthogonally(&torus)?,
             Tiling::OrthogonalAndDiagonal => connect_orthogonally_and_diagonally(&torus)?,
+            Tiling::Hexagons => connect_hexagons(&torus)?,
             _ => todo!(),
         }
 
@@ -75,6 +76,9 @@ impl<S: State> Torus<S> {
             }
             Tiling::OrthogonalAndDiagonal => {
                 orthogonal_to_strings(&self.cells, &self.dimensions, generation, &mut lines)
+            }
+            Tiling::Hexagons => {
+                hexagons_to_strings(&self.cells, &self.dimensions, generation, &mut lines);
             }
             _ => todo!(),
         };
@@ -196,22 +200,22 @@ fn connect_diagonally<S: State>(torus: &Torus<S>) -> Result<()> {
 
 fn next_co_ordinates(co_ordinates: &mut [usize], dimensions: &[usize]) {
     let dimensionality = dimensions.len();
-    let mut j = 0;
+    let mut j = dimensionality - 1;
     loop {
         co_ordinates[j] += 1;
         if co_ordinates[j] < dimensions[j] {
             break;
         } else {
             co_ordinates[j] = 0;
-            j += 1;
-            if j >= dimensionality {
+            if j < 1 {
                 break;
             }
+            j -= 1;
         }
     }
 }
 
-fn get_index(co_ordinates: &[usize], dimensions: &[usize]) -> Result<usize> {
+pub fn get_index(co_ordinates: &[usize], dimensions: &[usize]) -> Result<usize> {
     let dimensionality = dimensions.len();
     if co_ordinates.len() != dimensionality {
         return Err(anyhow!(
@@ -220,11 +224,10 @@ fn get_index(co_ordinates: &[usize], dimensions: &[usize]) -> Result<usize> {
             dimensions.len()
         ));
     }
-    let mut result = co_ordinates[dimensionality - 1];
+    let mut result = co_ordinates[0];
     if dimensionality > 1 {
-        for k in 0..dimensionality - 1 {
-            let offset = dimensionality - k - 1;
-            result = result * dimensions[offset] + co_ordinates[offset - 1];
+        for offset in 0..dimensionality - 1 {
+            result = result * dimensions[offset] + co_ordinates[offset + 1];
         }
     }
     Ok(result)
@@ -253,18 +256,105 @@ fn orthogonal_to_strings<S: State>(
             );
         }
     } else if dimensionality == 1 {
-        result.push(line_to_string(cells, dimensions[0], generation));
+        result.push(line_to_string(cells, dimensions[0], generation, 0, "", ""));
     }
 }
 
-fn line_to_string<S: State>(cells: &[Cell<S>], width: usize, generation: &S::Gen) -> String {
-    let mut line = "".to_string();
+fn connect_hexagons<S: State>(torus: &Torus<S>) -> Result<()> {
+    if torus.dimensions.len() != 2 {
+        return Err(anyhow!("Tiling with triangles is only possible in 2-D"));
+    }
+    let height = torus.dimensions[0];
+    let width = torus.dimensions[1];
+    if (height % 2) == 1 || (width % 2) == 1 {
+        return Err(anyhow!(
+            "Tiling with triangles is only possible if both dimensions are even"
+        ));
+    }
+    let cells = &torus.cells;
+    let mut co_ordinates = vec![0, 0];
+    for i in 0..cells.len() {
+        assert!(get_index(&co_ordinates, &torus.dimensions)? == i);
+        let center = &cells[i];
+        let y = (co_ordinates[0] + 1) % height;
+        let offset = width - (co_ordinates[0]) % 2;
+        let lx = (co_ordinates[1] + offset) % width;
+        let rx = (co_ordinates[1] + offset + 1) % width;
+        let ax = (co_ordinates[1] + 1) % width;
+        let left_index = get_index(&[y, lx], &torus.dimensions)?;
+        let right_index = get_index(&[y, rx], &torus.dimensions)?;
+        let next_index = get_index(&[co_ordinates[0], ax], &torus.dimensions)?;
+        debug!(
+            "Join left hexagon: ({:?}) <=> ({:?}) ~ {} <=> {}",
+            &co_ordinates,
+            &[lx, y],
+            i,
+            left_index
+        );
+        debug!(
+            "Join right hexagon: ({:?}) <=> ({:?}) ~ {} <=> {}",
+            &co_ordinates,
+            &[rx, y],
+            i,
+            right_index
+        );
+        debug!(
+            "Join next hexagon: ({:?}) <=> ({:?}) ~ {} <=> {}",
+            &co_ordinates,
+            &[ax, co_ordinates[1]],
+            i,
+            next_index
+        );
+        let left = &cells[left_index];
+        let right = &cells[right_index];
+        let next = &cells[next_index];
+        center.join(&left)?;
+        center.join(&right)?;
+        center.join(&next)?;
+        next_co_ordinates(&mut co_ordinates, &torus.dimensions);
+    }
+    Ok(())
+}
+
+fn hexagons_to_strings<S: State>(
+    cells: &[Cell<S>],
+    dimensions: &[usize],
+    generation: &S::Gen,
+    result: &mut Vec<String>,
+) {
+    let height = dimensions[0];
+    let width = dimensions[1];
+    let mut start = 0;
+    for y in 0..height {
+        let prefix = if (y % 2) == 0 { " " } else { "" };
+        result.push(line_to_string(
+            &cells[start..start + width],
+            width,
+            generation,
+            0,
+            prefix,
+            " ",
+        ));
+        start += width;
+    }
+}
+
+fn line_to_string<S: State>(
+    cells: &[Cell<S>],
+    width: usize,
+    generation: &S::Gen,
+    offset: usize,
+    prefix: &str,
+    sep: &str,
+) -> String {
+    let mut line = prefix.to_string();
     for x in 0..width {
-        let char = cells[x]
+        let s = cells[(x + offset) % width]
             .state(generation)
-            .map(|s| s.to_char())
-            .unwrap_or('?');
-        line.push(char);
+            .map(|s| format!("{s}"))
+            .unwrap_or("?".to_string());
+        line.push_str(&s);
+        line.push_str(sep);
     }
     line
 }
