@@ -71,11 +71,11 @@ impl Display for Wave {
     }
 }
 
-pub fn example() -> Result<()> {
+pub fn example(size: usize) -> Result<()> {
     let origin = Cell::new(0usize, Wave::new(0.0));
     info!("Origin: [{origin:?}]");
-    let width = 34;
-    let height = 34;
+    let width = size;
+    let height = size;
     let mut generation = 0usize;
     let torus = Torus::new(
         origin.clone(),
@@ -92,7 +92,7 @@ pub fn example() -> Result<()> {
     )?;
     info!("Origin: [{origin:?}]");
     torus.info(&generation);
-    for _ in 1..17 {
+    for _ in 1..(size / 2) {
         torus.update_all(&generation)?;
         generation = generation.successor();
         torus.info(&generation);
@@ -119,12 +119,11 @@ impl Display for Coords {
     }
 }
 
-#[allow(dead_code)]
-pub fn debug() -> Result<()> {
+pub fn debug(size: usize) -> Result<()> {
     let origin = Cell::new(0usize, Coords(0, 0, 0));
     info!("Origin: [{origin:?}]");
-    let width = 4;
-    let height = 4;
+    let width = size;
+    let height = size;
     let dimensions = [height, width];
     let generation = 0usize;
     let torus = Torus::new(

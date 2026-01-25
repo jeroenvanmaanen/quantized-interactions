@@ -11,6 +11,7 @@ license = "MIT"
 
 [dependencies]
 anyhow = "^1.0.100"
+clap = { version = "^4.5.45", features = ["derive"] }
 env_logger = "^0.11.3"
 log = "^0.4.21"
 uuid = { version = "^1.19.0", features = [ "v4" ] }
