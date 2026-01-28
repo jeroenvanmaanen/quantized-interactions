@@ -18,6 +18,10 @@ pub trait State: Debug + Clone + Display {
 
     fn update(cell: &Cell<Self>, generation: &Self::Gen) -> Result<Self>;
 }
+pub trait GrayScale {
+    type Context;
+    fn gray_value(&self, context: &Self::Context) -> u8;
+}
 
 impl Generation for usize {
     fn successor(&self) -> Self {

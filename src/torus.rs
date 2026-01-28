@@ -1,7 +1,13 @@
+use std::{
+    fs::{File, OpenOptions, create_dir_all},
+    io::Write,
+    path::PathBuf,
+};
+
 use anyhow::{Result, anyhow};
 use log::{debug, info, trace};
 
-use crate::cell::{Cell, State};
+use crate::cell::{Cell, GrayScale, State};
 
 #[allow(dead_code)]
 #[derive(Clone, Copy)]
@@ -91,6 +97,36 @@ impl<S: State> Torus<S> {
         for cell in &self.cells {
             trace!("Update: [{:?}]", cell.id());
             cell.update(generation)?;
+        }
+        Ok(())
+    }
+
+    pub fn reduce<A, F: Fn(&Cell<S>, &mut A)>(&self, acc: &mut A, update: F) {
+        for cell in &self.cells {
+            update(cell, acc);
+        }
+    }
+}
+
+impl<S: State + GrayScale> Torus<S> {
+    pub fn export(
+        &self,
+        generation: &S::Gen,
+        context: &S::Context,
+        export_dir: Option<&PathBuf>,
+    ) -> Result<()> {
+        if let Some(dir) = export_dir {
+            create_dir_all(&dir)?;
+            let mut file_path = dir.clone();
+            file_path.push(format!("gen-{generation:?}.pgm"));
+            let mut file = OpenOptions::new()
+                .create(true)
+                .write(true)
+                .open(file_path)?;
+            match self.tiling {
+                Tiling::Hexagons => export(self, generation, context, &mut file)?,
+                _ => todo!(),
+            }
         }
         Ok(())
     }
@@ -357,4 +393,38 @@ fn line_to_string<S: State>(
         line.push_str(sep);
     }
     line
+}
+
+fn export<S: State + GrayScale>(
+    torus: &Torus<S>,
+    generation: &S::Gen,
+    context: &S::Context,
+    file: &mut File,
+) -> Result<()> {
+    if torus.dimensions.len() != 2 {
+        return Err(anyhow!("Torus should be two-dimensional"));
+    }
+    let height = torus.dimensions[0];
+    let width = torus.dimensions[1];
+    file.write(format!("P2\n{} {}\n{}\n", width * 2 + 1, height, 255).as_bytes())?;
+    let mut offset = 0;
+    for y in 0..height {
+        let line = &torus.cells[offset..(offset + width)];
+        if (y % 2) == 0 {
+            file.write(format!("128 ").as_bytes())?;
+        };
+        for x in 0..width {
+            let gray = line[x]
+                .state(generation)
+                .map(|s| s.gray_value(context))
+                .unwrap_or(128);
+            file.write(format!("{gray} 128 ").as_bytes())?;
+        }
+        if (y % 2) != 0 {
+            file.write(format!("128").as_bytes())?;
+        };
+        file.write("\n".as_bytes())?;
+        offset = offset + width;
+    }
+    Ok(())
 }

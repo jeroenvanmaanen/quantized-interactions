@@ -24,3 +24,5 @@ target
 # Added by cargo
 
 /target
+/data/tmp/**
+!/data/tmp/README.md

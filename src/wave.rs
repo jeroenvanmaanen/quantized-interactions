@@ -1,7 +1,10 @@
-use std::fmt::{Display, Write};
+use std::{
+    fmt::{Display, Write},
+    path::PathBuf,
+};
 
 use crate::{
-    cell::{Cell, Generation, State},
+    cell::{Cell, Generation, GrayScale, State},
     torus::{Tiling, Torus, get_index},
 };
 use anyhow::Result;
@@ -12,6 +15,7 @@ use log::{info, trace};
 pub struct Wave {
     pub amplitude: f64,
     force: f64,
+    neighbor_count: Option<u8>,
 }
 
 impl Wave {
@@ -19,6 +23,7 @@ impl Wave {
         Wave {
             amplitude,
             force: 0.0,
+            neighbor_count: None,
         }
     }
 }
@@ -38,7 +43,9 @@ impl State for Wave {
         for neighbor in neighbors_lock.iter() {
             trace!("Neigbor: [{}]", neighbor.id());
             if let Some(state) = neighbor.state(generation) {
-                next_amplitude += state.force / 6.0;
+                if let Some(c) = state.neighbor_count {
+                    next_amplitude += state.force / (c as f64);
+                }
                 next_force += this_state.amplitude - state.amplitude;
                 count += 1;
             } else {
@@ -46,10 +53,11 @@ impl State for Wave {
             }
         }
         trace!("Neighbor count: {}: {} (err: {})", cell.id(), count, err);
-        next_force *= 0.1;
+        next_force *= 0.04;
         let result = Wave {
             amplitude: next_amplitude,
             force: next_force,
+            neighbor_count: Some(count),
         };
         Ok(result)
     }
@@ -71,7 +79,17 @@ impl Display for Wave {
     }
 }
 
-pub fn example(size: usize) -> Result<()> {
+impl GrayScale for Wave {
+    type Context = f64;
+
+    fn gray_value(&self, context: &f64) -> u8 {
+        let magnitude = self.amplitude.abs().sqrt();
+        let sign = self.amplitude.signum();
+        ((127.0 * sign * magnitude / context) + 128.0) as u8
+    }
+}
+
+pub fn example(size: usize, export_dir: Option<&PathBuf>) -> Result<()> {
     let origin = Cell::new(0usize, Wave::new(0.0));
     info!("Origin: [{origin:?}]");
     let width = size;
@@ -96,6 +114,8 @@ pub fn example(size: usize) -> Result<()> {
         torus.update_all(&generation)?;
         generation = generation.successor();
         torus.info(&generation);
+        let m = max_amplitude(&torus, &generation).abs().sqrt();
+        torus.export(&generation, &m, export_dir)?;
     }
     Ok(())
 }
@@ -144,4 +164,21 @@ pub fn debug(size: usize) -> Result<()> {
     )?;
     torus.info(&generation);
     Ok(())
+}
+
+fn max_amplitude(torus: &Torus<Wave>, generation: &<Wave as State>::Gen) -> f64 {
+    let mut result = 0.0f64;
+    torus.reduce(&mut result, |c, a| {
+        let v = c
+            .state(generation)
+            .map(|s| s.amplitude.abs())
+            .unwrap_or(0.0);
+        if v > *a {
+            *a = v;
+        }
+    });
+    if result <= 0.0 {
+        result = 1.0;
+    }
+    result
 }

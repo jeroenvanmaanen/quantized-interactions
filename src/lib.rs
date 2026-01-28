@@ -4,6 +4,8 @@ mod experiment;
 mod torus;
 mod wave;
 
+use std::path::PathBuf;
+
 use anyhow::Result;
 use clap::{Parser, Subcommand, command};
 use log::{debug, info};
@@ -27,6 +29,9 @@ enum Commands {
         #[arg(help = "size of torus (must be even)")]
         size: usize,
 
+        #[arg(help = "directory to export PNM-files", long)]
+        export_dir: Option<PathBuf>,
+
         #[arg(help = "execute debug function", required = false, long)]
         debug: bool,
     },
@@ -37,11 +42,15 @@ pub fn main() -> Result<()> {
 
     let cli = Cli::parse();
     match cli.cli_command {
-        Some(Commands::Wave { size, debug }) => {
+        Some(Commands::Wave {
+            size,
+            debug,
+            export_dir,
+        }) => {
             if debug {
                 wave::debug(size)?
             } else {
-                wave::example(size)?
+                wave::example(size, export_dir.as_ref())?
             }
         }
         Some(Commands::Conway) => conway::example()?,
