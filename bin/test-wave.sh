@@ -9,7 +9,7 @@ source "${BIN}/lib-verbose.sh"
 
 if [[ "$#" -lt 1 ]]
 then
-    set -- 34
+    set -- 60
 fi
 
 mkdir -p "${PROJECT}/data/tmp/wave"

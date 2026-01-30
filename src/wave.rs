@@ -15,7 +15,8 @@ use log::{info, trace};
 
 #[derive(Clone, Debug, Default)]
 pub struct Wave {
-    pub amplitude: f64,
+    amplitude: f64,
+    velocity: f64,
     is_center: bool,
     neighbor_count: Option<u8>,
 }
@@ -24,6 +25,7 @@ impl Wave {
     pub fn new(amplitude: f64, is_center: bool) -> Wave {
         Wave {
             amplitude,
+            velocity: 0.0,
             is_center,
             neighbor_count: None,
         }
@@ -39,20 +41,24 @@ impl State for Wave {
         trace!("This state: [{this_state:?}]");
         let neighbors_lock = cell.neighbors()?;
         let mut next_amplitude = this_state.amplitude;
+        let mut next_velocity = this_state.velocity;
+        next_amplitude += next_velocity;
         let mut count = 0;
         let mut err = 0;
         if this_state.is_center {
-            next_amplitude = ((*generation as f64) / 10.0).sin() * 30.0;
+            let angle = (*generation as f64) / 40.0;
+            next_amplitude = angle.sin() * 30.0;
+            next_velocity = angle.cos();
             count = neighbors_lock.len() as u8;
         } else if let Some(this_c) = this_state.neighbor_count {
             for neighbor in neighbors_lock.iter() {
                 trace!("Neigbor: [{}]", neighbor.id());
                 if let Some(other_state) = neighbor.state(generation) {
                     if let Some(c) = other_state.neighbor_count {
-                        let min_c = cmp::min(this_c, c);
+                        let max_c = cmp::max(this_c, c);
                         let delta =
-                            (other_state.amplitude - this_state.amplitude) * 0.3 / (min_c as f64);
-                        next_amplitude += delta;
+                            (other_state.amplitude - this_state.amplitude) * 0.005 / (max_c as f64);
+                        next_velocity += delta;
                     }
                     count += 1;
                 } else {
@@ -66,6 +72,7 @@ impl State for Wave {
         let new_count = if count > 0 { Some(count) } else { None };
         let result = Wave {
             amplitude: next_amplitude,
+            velocity: next_velocity,
             is_center: this_state.is_center,
             neighbor_count: new_count,
         };
@@ -117,13 +124,15 @@ pub fn example(size: usize, export_dir: Option<&PathBuf>) -> Result<()> {
     )?;
     info!("Origin: [{origin:?}]");
     // torus.info(&generation);
-    for _ in 1..(size * 2) {
+    for i in 1..=(size * 10) {
         torus.update_all(&generation)?;
         generation = generation.successor();
         // torus.info(&generation);
         let m = smallest_local_maximum(&torus, &generation);
         info!("Smallest local maximum: [{generation}]: [{m}]");
-        torus.export(&generation, &m, export_dir)?;
+        if i % size == 0 {
+            torus.export(&generation, &m, export_dir)?;
+        }
     }
     Ok(())
 }
