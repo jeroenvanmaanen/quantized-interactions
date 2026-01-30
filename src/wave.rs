@@ -1,4 +1,5 @@
 use std::{
+    cmp,
     f64::{MAX, consts::PI},
     fmt::{Display, Write},
     path::PathBuf,
@@ -15,15 +16,15 @@ use log::{info, trace};
 #[derive(Clone, Debug, Default)]
 pub struct Wave {
     pub amplitude: f64,
-    force: f64,
+    is_center: bool,
     neighbor_count: Option<u8>,
 }
 
 impl Wave {
-    pub fn new(amplitude: f64) -> Wave {
+    pub fn new(amplitude: f64, is_center: bool) -> Wave {
         Wave {
             amplitude,
-            force: 0.0,
+            is_center,
             neighbor_count: None,
         }
     }
@@ -37,28 +38,36 @@ impl State for Wave {
         let this_state = cell.state(generation).unwrap_or_default();
         trace!("This state: [{this_state:?}]");
         let neighbors_lock = cell.neighbors()?;
-        let mut next_amplitude = this_state.amplitude - this_state.force;
-        let mut next_force = 0.0;
+        let mut next_amplitude = this_state.amplitude;
         let mut count = 0;
         let mut err = 0;
-        for neighbor in neighbors_lock.iter() {
-            trace!("Neigbor: [{}]", neighbor.id());
-            if let Some(state) = neighbor.state(generation) {
-                if let Some(c) = state.neighbor_count {
-                    next_amplitude += state.force / (c as f64);
+        if this_state.is_center {
+            next_amplitude = ((*generation as f64) / 10.0).sin() * 30.0;
+            count = neighbors_lock.len() as u8;
+        } else if let Some(this_c) = this_state.neighbor_count {
+            for neighbor in neighbors_lock.iter() {
+                trace!("Neigbor: [{}]", neighbor.id());
+                if let Some(other_state) = neighbor.state(generation) {
+                    if let Some(c) = other_state.neighbor_count {
+                        let min_c = cmp::min(this_c, c);
+                        let delta =
+                            (other_state.amplitude - this_state.amplitude) * 0.3 / (min_c as f64);
+                        next_amplitude += delta;
+                    }
+                    count += 1;
+                } else {
+                    err += 1;
                 }
-                next_force += this_state.amplitude - state.amplitude;
-                count += 1;
-            } else {
-                err += 1;
             }
+        } else {
+            count = neighbors_lock.len() as u8;
         }
         trace!("Neighbor count: {}: {} (err: {})", cell.id(), count, err);
-        next_force *= 0.04;
+        let new_count = if count > 0 { Some(count) } else { None };
         let result = Wave {
             amplitude: next_amplitude,
-            force: next_force,
-            neighbor_count: Some(count),
+            is_center: this_state.is_center,
+            neighbor_count: new_count,
         };
         Ok(result)
     }
@@ -91,7 +100,7 @@ impl GrayScale for Wave {
 }
 
 pub fn example(size: usize, export_dir: Option<&PathBuf>) -> Result<()> {
-    let origin = Cell::new(0usize, Wave::new(0.0));
+    let origin = Cell::new(0usize, Wave::new(0.0, false));
     info!("Origin: [{origin:?}]");
     let width = size;
     let height = size;
@@ -102,21 +111,18 @@ pub fn example(size: usize, export_dir: Option<&PathBuf>) -> Result<()> {
         &[height, width],
         generation.clone(),
         |v: &[usize]| {
-            Wave::new(if v[0] == height / 2 && v[1] == width / 2 {
-                1000.0
-            } else {
-                0.0
-            })
+            let c = v[0] / 2 == height / 4 && v[1] / 2 == width / 4;
+            Wave::new(0.0, c)
         },
     )?;
     info!("Origin: [{origin:?}]");
-    torus.info(&generation);
-    for _ in 1..(size / 2) {
+    // torus.info(&generation);
+    for _ in 1..(size * 2) {
         torus.update_all(&generation)?;
         generation = generation.successor();
-        torus.info(&generation);
+        // torus.info(&generation);
         let m = smallest_local_maximum(&torus, &generation);
-        info!("Smallest local maximum: [{m}]");
+        info!("Smallest local maximum: [{generation}]: [{m}]");
         torus.export(&generation, &m, export_dir)?;
     }
     Ok(())

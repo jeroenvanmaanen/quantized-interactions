@@ -29,7 +29,7 @@ enum Commands {
         #[arg(help = "size of torus (must be even)")]
         size: usize,
 
-        #[arg(help = "directory to export PNM-files", long)]
+        #[arg(help = "directory to export image-files", long)]
         export_dir: Option<PathBuf>,
 
         #[arg(help = "execute debug function", required = false, long)]

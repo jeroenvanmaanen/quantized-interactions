@@ -1,10 +1,10 @@
 use std::{
-    fs::{File, OpenOptions, create_dir_all},
-    io::Write,
+    fs::{OpenOptions, create_dir_all},
     path::PathBuf,
 };
 
 use anyhow::{Result, anyhow};
+use image::{GrayImage, Luma};
 use log::{debug, info, trace};
 
 use crate::cell::{Cell, GrayScale, State};
@@ -117,14 +117,8 @@ impl<S: State + GrayScale> Torus<S> {
     ) -> Result<()> {
         if let Some(dir) = export_dir {
             create_dir_all(&dir)?;
-            let mut file_path = dir.clone();
-            file_path.push(format!("gen-{generation:?}.pgm"));
-            let mut file = OpenOptions::new()
-                .create(true)
-                .write(true)
-                .open(file_path)?;
             match self.tiling {
-                Tiling::Hexagons => export(self, generation, context, &mut file)?,
+                Tiling::Hexagons => export(self, generation, context, &dir)?,
                 _ => todo!(),
             }
         }
@@ -399,32 +393,47 @@ fn export<S: State + GrayScale>(
     torus: &Torus<S>,
     generation: &S::Gen,
     context: &S::Context,
-    file: &mut File,
+    dir: &PathBuf,
 ) -> Result<()> {
     if torus.dimensions.len() != 2 {
         return Err(anyhow!("Torus should be two-dimensional"));
     }
     let height = torus.dimensions[0];
     let width = torus.dimensions[1];
-    file.write(format!("P2\n{} {}\n{}\n", width * 2 + 1, height, 255).as_bytes())?;
+    let mut img = GrayImage::new((width * 4 + 2) as u32, (height * 3 + 1) as u32);
+
     let mut offset = 0;
     for y in 0..height {
         let line = &torus.cells[offset..(offset + width)];
-        if (y % 2) == 0 {
-            file.write(format!("128 ").as_bytes())?;
-        };
+        let xs = if (y % 2) == 0 { 2 } else { 0 };
         for x in 0..width {
             let gray = line[x]
                 .state(generation)
                 .map(|s| s.gray_value(context))
                 .unwrap_or(128);
-            file.write(format!("{gray} 128 ").as_bytes())?;
+            let luma = [gray];
+            let xo = (xs + 4 * x) as u32;
+            let yo = 3 * y as u32;
+            for xp in [1, 2] {
+                for yp in 0..=3 {
+                    img.put_pixel(xo + xp, yo + yp, Luma::from(luma.clone()));
+                }
+            }
+            for xp in [0, 3] {
+                for yp in [1, 2] {
+                    img.put_pixel(xo + xp, yo + yp, Luma::from(luma.clone()));
+                }
+            }
         }
-        if (y % 2) != 0 {
-            file.write(format!("128").as_bytes())?;
-        };
-        file.write("\n".as_bytes())?;
         offset = offset + width;
     }
+
+    let mut file_path = dir.clone();
+    file_path.push(format!("gen-{generation:?}.png"));
+    let mut writer = OpenOptions::new()
+        .create(true)
+        .write(true)
+        .open(file_path)?;
+    img.write_to(&mut writer, image::ImageFormat::Png)?;
     Ok(())
 }
