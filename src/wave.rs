@@ -1,4 +1,5 @@
 use std::{
+    f64::{MAX, consts::PI},
     fmt::{Display, Write},
     path::PathBuf,
 };
@@ -82,10 +83,10 @@ impl Display for Wave {
 impl GrayScale for Wave {
     type Context = f64;
 
-    fn gray_value(&self, context: &f64) -> u8 {
-        let magnitude = self.amplitude.abs().sqrt();
-        let sign = self.amplitude.signum();
-        ((127.0 * sign * magnitude / context) + 128.0) as u8
+    fn gray_value(&self, smallest_local_maximum: &f64) -> u8 {
+        let magnitude = self.amplitude / smallest_local_maximum;
+        let value = magnitude.atan() * 2.0 / PI;
+        ((127.0 * value) + 128.0) as u8
     }
 }
 
@@ -114,7 +115,8 @@ pub fn example(size: usize, export_dir: Option<&PathBuf>) -> Result<()> {
         torus.update_all(&generation)?;
         generation = generation.successor();
         torus.info(&generation);
-        let m = max_amplitude(&torus, &generation).abs().sqrt();
+        let m = smallest_local_maximum(&torus, &generation);
+        info!("Smallest local maximum: [{m}]");
         torus.export(&generation, &m, export_dir)?;
     }
     Ok(())
@@ -166,19 +168,36 @@ pub fn debug(size: usize) -> Result<()> {
     Ok(())
 }
 
-fn max_amplitude(torus: &Torus<Wave>, generation: &<Wave as State>::Gen) -> f64 {
-    let mut result = 0.0f64;
+fn smallest_local_maximum(torus: &Torus<Wave>, generation: &<Wave as State>::Gen) -> f64 {
+    let mut result = MAX;
     torus.reduce(&mut result, |c, a| {
-        let v = c
-            .state(generation)
-            .map(|s| s.amplitude.abs())
-            .unwrap_or(0.0);
-        if v > *a {
-            *a = v;
+        if let Ok(Some(amplitude)) = local_maximum(c, generation) {
+            if amplitude < *a {
+                *a = amplitude;
+            }
         }
     });
     if result <= 0.0 {
         result = 1.0;
     }
     result
+}
+
+fn local_maximum(cell: &Cell<Wave>, generation: &<Wave as State>::Gen) -> Result<Option<f64>> {
+    if let Some(this_state) = cell.state(generation) {
+        let amplitude = this_state.amplitude.abs();
+        if amplitude <= 0.0 {
+            return Ok(None);
+        }
+        for neighbor in cell.neighbors()?.iter() {
+            if let Some(other_state) = neighbor.state(generation) {
+                if other_state.amplitude.abs() > amplitude {
+                    return Ok(None);
+                }
+            }
+        }
+        Ok(Some(amplitude))
+    } else {
+        Ok(None)
+    }
 }
