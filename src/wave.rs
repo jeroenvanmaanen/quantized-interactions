@@ -1,5 +1,5 @@
 use crate::{
-    cell::{Cell, CellRegion, Generation, GrayScale, Location, Region, State},
+    cell::{Cell, Generation, GrayScale, Location, Region, Space, State},
     torus::{Tiling, Torus, get_index},
 };
 use anyhow::Result;
@@ -8,6 +8,7 @@ use std::{
     f64::{MAX, consts::PI},
     fmt::{Display, Write},
     path::PathBuf,
+    rc::Rc,
 };
 // use log::debug;
 use log::{info, trace};
@@ -74,7 +75,7 @@ impl State<usize> for Wave {
             }
         }
         trace!(
-"Neighbor count: {}: {} (err: {})",
+            "Neighbor count: {}: {} (err: {})",
             location.id(),
             count,
             err
@@ -117,7 +118,6 @@ impl GrayScale for Wave {
 }
 
 pub fn example(size: usize, export_dir: Option<&PathBuf>) -> Result<()> {
-    let region = CellRegion::default();
     let origin = Cell::new(0usize, Wave::new(0.0, false));
     info!("Origin: [{origin:?}]");
     let width = size;
@@ -134,15 +134,16 @@ pub fn example(size: usize, export_dir: Option<&PathBuf>) -> Result<()> {
         },
     )?;
     info!("Origin: [{origin:?}]");
+    let torus = Rc::new(torus);
     // torus.info(&generation);
     for i in 1..=(size * 10) {
         torus.update_all(&generation)?;
         generation = generation.successor();
         // torus.info(&generation);
-        let m = smallest_local_maximum(&torus, &region, &generation);
+        let m = smallest_local_maximum(&torus, &generation);
         info!("Smallest local maximum: [{generation}]: [{m}]");
         if i % size == 0 {
-            torus.export(&region, &generation, &m, export_dir)?;
+            torus.export(&torus, &generation, &m, export_dir)?;
         }
     }
     Ok(())
@@ -196,36 +197,28 @@ pub fn debug(size: usize) -> Result<()> {
     Ok(())
 }
 
-fn smallest_local_maximum<Reg: Region<Wave, usize, Loc = Cell<Wave, usize>>>(
-    torus: &Torus<Wave, usize>,
-    region: &Reg,
-    generation: &usize,
-) -> f64 {
-    let mut result = MAX;
-    torus.reduce(region, &mut result, |r, c, a| {
+fn smallest_local_maximum(torus: &impl Space<Wave, usize>, generation: &usize) -> f64 {
+    let result = torus.reduce(MAX, |r, c, a| {
         if let Ok(Some(amplitude)) = local_maximum(r, c, generation) {
-            if amplitude < *a {
-                *a = amplitude;
-            }
+            if amplitude < a { amplitude } else { a }
+        } else {
+            a
         }
     });
-    if result <= 0.0 {
-        result = 1.0;
-    }
-    result
+    if result <= 0.0 { 1.0 } else { result }
 }
 
 fn local_maximum<Reg: Region<Wave, usize>>(
     region: &Reg,
-    cell: &Reg::Loc,
+    location: &Reg::Loc,
     generation: &usize,
 ) -> Result<Option<f64>> {
-    if let Some(this_state) = region.state(cell, generation) as Option<Wave> {
+    if let Some(this_state) = region.state(location, generation) as Option<Wave> {
         let amplitude = this_state.amplitude.abs();
         if amplitude <= 0.0 {
             return Ok(None);
         }
-        for neighbor in cell.neighbors()? {
+        for neighbor in location.neighbors()? {
             if let Some(other_state) = region.state(&neighbor, generation) as Option<Wave> {
                 if other_state.amplitude.abs() > amplitude {
                     return Ok(None);

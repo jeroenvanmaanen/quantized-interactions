@@ -15,7 +15,27 @@ pub trait Generation: Hash + Eq + PartialEq + Debug + Clone {
 }
 pub trait Region<S: State<Gen>, Gen: Generation> {
     type Loc: Location<S, Gen>;
+
+    fn locations(&self) -> impl IntoIterator<Item = Self::Loc>;
     fn state(&self, location: &Self::Loc, generation: &Gen) -> Option<S>;
+}
+pub trait Space<S: State<Gen>, Gen: Generation> {
+    type Reg: Region<S, Gen>;
+
+    fn regions(&self) -> impl IntoIterator<Item = Self::Reg>;
+
+    fn reduce<A, F>(&self, init: A, f: F) -> A
+    where
+        F: Fn(&Self::Reg, &<Self::Reg as Region<S, Gen>>::Loc, A) -> A,
+    {
+        let mut accumulator = init;
+        for region in self.regions() {
+            for location in region.locations() {
+                accumulator = f(&region, &location, accumulator);
+            }
+        }
+        accumulator
+    }
 }
 pub trait Location<S: State<Gen>, Gen: Generation>: Sized {
     fn neighbors(&self) -> Result<impl IntoIterator<Item = Self>>;
@@ -44,6 +64,10 @@ pub struct CellRegion;
 
 impl<S: State<Gen>, Gen: Generation> Region<S, Gen> for CellRegion {
     type Loc = Cell<S, Gen>;
+
+    fn locations(&self) -> impl IntoIterator<Item = Self::Loc> {
+        HashSet::new()
+    }
 
     fn state(&self, location: &Self::Loc, generation: &Gen) -> Option<S> {
         location.state(self, generation)
@@ -105,7 +129,7 @@ impl<S: State<Gen>, Gen: Generation> Cell<S, Gen> {
         Ok(())
     }
 
-    fn state<Reg: Region<S, Gen>>(&self, _region: &Reg, generation: &Gen) -> Option<S> {
+    pub fn state<Reg: Region<S, Gen>>(&self, _region: &Reg, generation: &Gen) -> Option<S> {
         let guard = self.0.state_map.read().ok();
         guard.map(|m| m.get(generation).map(Clone::clone)).flatten()
     }

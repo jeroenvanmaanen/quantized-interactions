@@ -1,13 +1,14 @@
 use std::{
     fs::{OpenOptions, create_dir_all},
     path::PathBuf,
+    rc::Rc,
 };
 
 use anyhow::{Result, anyhow};
 use image::{GrayImage, Luma};
 use log::{debug, info, trace};
 
-use crate::cell::{Cell, CellRegion, Generation, GrayScale, Location, Region, State};
+use crate::cell::{Cell, CellRegion, Generation, GrayScale, Location, Region, Space, State};
 
 #[allow(dead_code)]
 #[derive(Clone, Copy)]
@@ -100,16 +101,38 @@ impl<S: State<Gen>, Gen: Generation> Torus<S, Gen> {
         }
         Ok(())
     }
+}
 
-    pub fn reduce<A, Reg, F>(&self, region: &Reg, acc: &mut A, update: F)
+impl<S: State<Gen>, Gen: Generation> Region<S, Gen> for Rc<Torus<S, Gen>> {
+    type Loc = Cell<S, Gen>;
+
+    fn locations(&self) -> impl IntoIterator<Item = Self::Loc> {
+        self.cells.clone()
+    }
+
+    fn state(&self, location: &Self::Loc, generation: &Gen) -> Option<S> {
+        location.state(self, generation)
+    }
+}
+
+impl<S: State<Gen>, Gen: Generation> Space<S, Gen> for Rc<Torus<S, Gen>> {
+    type Reg = Rc<Torus<S, Gen>>;
+
+    fn regions(&self) -> impl IntoIterator<Item = Self::Reg> {
+        Some(self.clone())
+    }
+
+    fn reduce<A, F>(&self, init: A, f: F) -> A
     where
-        S: State<Gen>,
-        Reg: Region<S, Gen, Loc = Cell<S,Gen>>,
-        F: Fn(&Reg, &<Reg as Region<S, Gen>>::Loc, &mut A),
+        F: Fn(&Self::Reg, &<Self::Reg as Region<S, Gen>>::Loc, A) -> A,
     {
-        for cell in &self.cells {
-            update(region, cell, acc);
+        let mut accumulator = init;
+        for region in self.regions() {
+            for location in region.locations() {
+                accumulator = f(&region, &location, accumulator);
+            }
         }
+        accumulator
     }
 }
 

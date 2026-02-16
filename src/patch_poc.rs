@@ -28,6 +28,11 @@ impl Location<Trivial, usize> for u8 {
 
 impl Region<Trivial, usize> for () {
     type Loc = u8;
+
+    fn locations(&self) -> impl IntoIterator<Item = Self::Loc> {
+        HashSet::new()
+    }
+
     fn state(&self, _location: &Self::Loc, _generation: &usize) -> Option<Trivial> {
         None
     }
