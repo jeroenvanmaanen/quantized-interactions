@@ -13,19 +13,20 @@ use uuid::Uuid;
 pub trait Generation: Hash + Eq + PartialEq + Debug + Clone {
     fn successor(&self) -> Self;
 }
-pub trait Region<S: State> {
-    fn state(&self, location: &S::Loc, generation: &S::Gen) -> Option<S>;
+pub trait Region<S: State<Gen>, Gen: Generation> {
+    type Loc: Location<S, Gen>;
+    fn state(&self, location: &Self::Loc, generation: &Gen) -> Option<S>;
 }
-pub trait Location<S: State>: Sized {
+pub trait Location<S: State<Gen>, Gen: Generation>: Sized {
     fn neighbors(&self) -> Result<impl IntoIterator<Item = Self>>;
     fn id(&self) -> String;
 }
-pub trait State: Debug + Clone + Display {
-    type Gen: Generation;
-    type Reg: Region<Self>;
-    type Loc: Location<Self>;
-
-    fn update(region: &Self::Reg, location: &Self::Loc, generation: &Self::Gen) -> Result<Self>;
+pub trait State<Gen: Generation>: Debug + Clone + Display {
+    fn update<Reg: Region<Self, Gen>>(
+        region: &Reg,
+        location: &<Reg as Region<Self, Gen>>::Loc,
+        generation: &Gen,
+    ) -> Result<Self>;
 }
 pub trait GrayScale {
     type Context;
@@ -41,35 +42,37 @@ impl Generation for usize {
 #[derive(Default)]
 pub struct CellRegion;
 
-impl<S: State<Loc = Cell<S>, Reg = CellRegion>> Region<S> for CellRegion {
-    fn state(&self, location: &<S as State>::Loc, generation: &<S as State>::Gen) -> Option<S> {
+impl<S: State<Gen>, Gen: Generation> Region<S, Gen> for CellRegion {
+    type Loc = Cell<S, Gen>;
+
+    fn state(&self, location: &Self::Loc, generation: &Gen) -> Option<S> {
         location.state(self, generation)
     }
 }
 
 #[derive(Debug)]
-pub struct Cell<S: State>(Rc<InnerCell<S>>);
+pub struct Cell<S: State<Gen>, Gen: Generation>(Rc<InnerCell<S, Gen>>);
 
-impl<S: State> Clone for Cell<S> {
+impl<S: State<Gen>, Gen: Generation> Clone for Cell<S, Gen> {
     fn clone(&self) -> Self {
         Self(self.0.clone())
     }
 }
 
-impl<S: State> Hash for Cell<S> {
+impl<S: State<Gen>, Gen: Generation> Hash for Cell<S, Gen> {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         self.0.id.hash(state);
     }
 }
 
-impl<S: State> PartialEq for Cell<S> {
+impl<S: State<Gen>, Gen: Generation> PartialEq for Cell<S, Gen> {
     fn eq(&self, other: &Self) -> bool {
         self.0.id == other.0.id
     }
 }
-impl<S: State> Eq for Cell<S> {}
+impl<S: State<Gen>, Gen: Generation> Eq for Cell<S, Gen> {}
 
-impl<S: State> Location<S> for Cell<S> {
+impl<S: State<Gen>, Gen: Generation> Location<S, Gen> for Cell<S, Gen> {
     fn neighbors(&self) -> Result<impl IntoIterator<Item = Self>> {
         self.0.neighbors.read().map(|s| s.clone()).map_err(|e| {
             anyhow!(
@@ -85,12 +88,12 @@ impl<S: State> Location<S> for Cell<S> {
     }
 }
 
-impl<S: State<Loc = Cell<S>, Reg = CellRegion>> Cell<S> {
-    pub fn new(generation: S::Gen, state: S) -> Self {
+impl<S: State<Gen>, Gen: Generation> Cell<S, Gen> {
+    pub fn new(generation: Gen, state: S) -> Self {
         Cell(Rc::new(InnerCell::new(generation, state)))
     }
 
-    pub fn has_state(&self, generation: &S::Gen) -> bool {
+    pub fn has_state(&self, generation: &Gen) -> bool {
         let guard = self.0.state_map.read().ok();
         guard.map(|m| m.get(generation).is_some()).unwrap_or(false)
     }
@@ -102,12 +105,12 @@ impl<S: State<Loc = Cell<S>, Reg = CellRegion>> Cell<S> {
         Ok(())
     }
 
-    fn state(&self, _region: &S::Reg, generation: &S::Gen) -> Option<S> {
+    fn state<Reg: Region<S, Gen>>(&self, _region: &Reg, generation: &Gen) -> Option<S> {
         let guard = self.0.state_map.read().ok();
         guard.map(|m| m.get(generation).map(Clone::clone)).flatten()
     }
 
-    pub fn update(&self, generation: &S::Gen) -> Result<()> {
+    pub fn update(&self, generation: &Gen) -> Result<()> {
         let next_gen = generation.successor();
         if self.has_state(&next_gen) {
             return Ok(());
@@ -124,7 +127,11 @@ impl<S: State<Loc = Cell<S>, Reg = CellRegion>> Cell<S> {
     }
 }
 
-fn connect_cells<S: State<Loc = Cell<S>>>(this: &Cell<S>, that: &Cell<S>) -> Result<()> {
+fn connect_cells<S, Gen>(this: &Cell<S, Gen>, that: &Cell<S, Gen>) -> Result<()>
+where
+    S: State<Gen>,
+    Gen: Generation,
+{
     let mut neighbors_lock = this
         .0
         .neighbors
@@ -135,14 +142,14 @@ fn connect_cells<S: State<Loc = Cell<S>>>(this: &Cell<S>, that: &Cell<S>) -> Res
     Ok(())
 }
 
-struct InnerCell<S: State> {
+struct InnerCell<S: State<Gen>, Gen: Generation> {
     id: Uuid,
-    state_map: RwLock<HashMap<S::Gen, S>>,
-    neighbors: RwLock<HashSet<Cell<S>>>,
+    state_map: RwLock<HashMap<Gen, S>>,
+    neighbors: RwLock<HashSet<Cell<S, Gen>>>,
 }
 
-impl<S: State> InnerCell<S> {
-    pub fn new(generation: S::Gen, state: S) -> Self {
+impl<S: State<Gen>, Gen: Generation> InnerCell<S, Gen> {
+    pub fn new(generation: Gen, state: S) -> Self {
         let id = Uuid::new_v4();
         let mut state_map = HashMap::new();
         state_map.insert(generation, state);
@@ -160,7 +167,7 @@ impl<S: State> InnerCell<S> {
     }
 }
 
-impl<S: State> Debug for InnerCell<S> {
+impl<S: State<Gen>, Gen: Generation> Debug for InnerCell<S, Gen> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let neighbors = &self
             .neighbors

@@ -1,27 +1,30 @@
 #![allow(dead_code)]
 
 use anyhow::{Result, anyhow};
-use std::{collections::HashMap, rc::Rc};
+use std::{collections::HashMap, marker::PhantomData, rc::Rc};
 
-use crate::cell::State;
+use crate::cell::{Generation, State};
 
 const PATCH_SIZE: u8 = 0xFF;
 
-pub struct Inflexible<S: State + Copy, N: Neigbors> {
+pub struct Inflexible<S: State<Gen> + Copy, Gen: Generation, N: Neigbors> {
     adjacent: Vec<HashMap<u8, usize>>,
-    generations: HashMap<S::Gen, Vec<Patch<S, N>>>,
+    generations: HashMap<Gen, Vec<Patch<S, Gen, N>>>,
 }
 
-pub struct Patch<S: State + Copy, N: Neigbors> {
+pub struct Patch<S: State<Gen> + Copy, Gen: Generation, N: Neigbors> {
     cells: [S; PATCH_SIZE as usize],
     cell_patch: [u8; PATCH_SIZE as usize],
     neighbors: N,
     size: u8,
+    _phantom: PhantomData<Gen>,
 }
 
-impl<S, N: Neigbors> Patch<S, N>
+impl<S, Gen, N> Patch<S, Gen, N>
 where
-    S: State + Default + Copy,
+    S: State<Gen> + Default + Copy,
+    Gen: Generation,
+    N: Neigbors,
 {
     pub fn new_init(neighbors: N, init: S) -> Self {
         Patch {
@@ -29,13 +32,15 @@ where
             cell_patch: [0xFF; PATCH_SIZE as usize],
             neighbors,
             size: 0,
+            _phantom: PhantomData,
         }
     }
 }
 
-pub struct Location<S: State + Copy, N: Neigbors> {
-    patch: Rc<Patch<S, N>>,
+pub struct Location<S: State<Gen> + Copy, Gen: Generation, N: Neigbors> {
+    patch: Rc<Patch<S, Gen, N>>,
     index: u8,
+    _phantom: PhantomData<Gen>,
 }
 
 pub struct NeighborIterator<'a> {

@@ -1,15 +1,14 @@
+use crate::{
+    cell::{Cell, CellRegion, Generation, GrayScale, Location, Region, State},
+    torus::{Tiling, Torus, get_index},
+};
+use anyhow::Result;
 use std::{
     cmp,
     f64::{MAX, consts::PI},
     fmt::{Display, Write},
     path::PathBuf,
 };
-
-use crate::{
-    cell::{Cell, CellRegion, Generation, GrayScale, Location, Region, State},
-    torus::{Tiling, Torus, get_index},
-};
-use anyhow::Result;
 // use log::debug;
 use log::{info, trace};
 
@@ -32,16 +31,16 @@ impl Wave {
     }
 }
 
-impl State for Wave {
-    type Gen = usize;
-    type Reg = CellRegion;
-    type Loc = Cell<Self>;
-
-    fn update(region: &Self::Reg, cell: &Self::Loc, generation: &Self::Gen) -> Result<Self> {
-        trace!("Update: [{}]", cell.id());
-        let this_state: Self = region.state(cell, generation).unwrap_or_default();
+impl State<usize> for Wave {
+    fn update<Reg: Region<Self, usize>>(
+        region: &Reg,
+        location: &<Reg as Region<Self, usize>>::Loc,
+        generation: &usize,
+    ) -> Result<Self> {
+        trace!("Update: [{}]", location.id());
+        let this_state: Self = region.state(location, generation).unwrap_or_default();
         trace!("This state: [{this_state:?}]");
-        let neighbors = cell.neighbors()?;
+        let neighbors = location.neighbors()?;
         let mut next_amplitude = this_state.amplitude;
         let mut next_velocity = this_state.velocity;
         next_amplitude += next_velocity;
@@ -74,7 +73,12 @@ impl State for Wave {
                 count += 1;
             }
         }
-        trace!("Neighbor count: {}: {} (err: {})", cell.id(), count, err);
+        trace!(
+"Neighbor count: {}: {} (err: {})",
+            location.id(),
+            count,
+            err
+        );
         let new_count = if count > 0 { Some(count) } else { None };
         let result = Wave {
             amplitude: next_amplitude,
@@ -138,7 +142,7 @@ pub fn example(size: usize, export_dir: Option<&PathBuf>) -> Result<()> {
         let m = smallest_local_maximum(&torus, &region, &generation);
         info!("Smallest local maximum: [{generation}]: [{m}]");
         if i % size == 0 {
-            torus.export(&generation, &m, export_dir)?;
+            torus.export(&region, &generation, &m, export_dir)?;
         }
     }
     Ok(())
@@ -147,13 +151,13 @@ pub fn example(size: usize, export_dir: Option<&PathBuf>) -> Result<()> {
 #[derive(Default, Debug, Clone)]
 struct Coords(usize, usize, usize);
 
-impl State for Coords {
-    type Gen = usize;
-    type Reg = CellRegion;
-    type Loc = Cell<Self>;
-
-    fn update(region: &Self::Reg, cell: &Self::Loc, generation: &Self::Gen) -> Result<Self> {
-        return Ok(region.state(cell, generation).unwrap_or_default());
+impl<Gen: Generation> State<Gen> for Coords {
+    fn update<Reg: Region<Self, Gen>>(
+        region: &Reg,
+        location: &<Reg as Region<Self, Gen>>::Loc,
+        generation: &Gen,
+    ) -> Result<Self> {
+        return Ok(region.state(location, generation).unwrap_or_default());
     }
 }
 
@@ -192,10 +196,10 @@ pub fn debug(size: usize) -> Result<()> {
     Ok(())
 }
 
-fn smallest_local_maximum(
-    torus: &Torus<Wave>,
-    region: &<Wave as State>::Reg,
-    generation: &<Wave as State>::Gen,
+fn smallest_local_maximum<Reg: Region<Wave, usize, Loc = Cell<Wave, usize>>>(
+    torus: &Torus<Wave, usize>,
+    region: &Reg,
+    generation: &usize,
 ) -> f64 {
     let mut result = MAX;
     torus.reduce(region, &mut result, |r, c, a| {
@@ -211,10 +215,10 @@ fn smallest_local_maximum(
     result
 }
 
-fn local_maximum(
-    region: &<Wave as State>::Reg,
-    cell: &<Wave as State>::Loc,
-    generation: &<Wave as State>::Gen,
+fn local_maximum<Reg: Region<Wave, usize>>(
+    region: &Reg,
+    cell: &Reg::Loc,
+    generation: &usize,
 ) -> Result<Option<f64>> {
     if let Some(this_state) = region.state(cell, generation) as Option<Wave> {
         let amplitude = this_state.amplitude.abs();

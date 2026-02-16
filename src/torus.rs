@@ -7,7 +7,7 @@ use anyhow::{Result, anyhow};
 use image::{GrayImage, Luma};
 use log::{debug, info, trace};
 
-use crate::cell::{Cell, CellRegion, GrayScale, Location, Region, State};
+use crate::cell::{Cell, CellRegion, Generation, GrayScale, Location, Region, State};
 
 #[allow(dead_code)]
 #[derive(Clone, Copy)]
@@ -19,22 +19,22 @@ pub enum Tiling {
     Hexagons,
 }
 
-pub struct Torus<S: State<Loc = Cell<S>>> {
+pub struct Torus<S: State<Gen>, Gen: Generation> {
     tiling: Tiling,
     dimensions: Vec<usize>,
-    cells: Vec<Cell<S>>,
+    cells: Vec<Cell<S, Gen>>,
 }
 
-impl<S: State<Loc = Cell<S>, Reg = CellRegion>> Torus<S> {
+impl<S: State<Gen>, Gen: Generation> Torus<S, Gen> {
     pub fn new<C, F>(
         origin: C,
         tiling: Tiling,
         dimensions: &[usize],
-        initial_gen: S::Gen,
+        initial_gen: Gen,
         initial_state: F,
-    ) -> Result<Torus<S>>
+    ) -> Result<Torus<S, Gen>>
     where
-        C: Into<Cell<S>>,
+        C: Into<Cell<S, Gen>>,
         F: Fn(&[usize]) -> S,
     {
         let mut cardinality = 1usize;
@@ -73,7 +73,7 @@ impl<S: State<Loc = Cell<S>, Reg = CellRegion>> Torus<S> {
         Ok(torus)
     }
 
-    pub fn info(&self, generation: &S::Gen) {
+    pub fn info(&self, generation: &Gen) {
         info!("Generation: {generation:?}");
         let mut lines = Vec::new();
         match self.tiling {
@@ -93,7 +93,7 @@ impl<S: State<Loc = Cell<S>, Reg = CellRegion>> Torus<S> {
         }
     }
 
-    pub fn update_all(&self, generation: &S::Gen) -> Result<()> {
+    pub fn update_all(&self, generation: &Gen) -> Result<()> {
         for cell in &self.cells {
             trace!("Update: [{:?}]", cell.id());
             cell.update(generation)?;
@@ -101,10 +101,11 @@ impl<S: State<Loc = Cell<S>, Reg = CellRegion>> Torus<S> {
         Ok(())
     }
 
-    pub fn reduce<A, F>(&self, region: &S::Reg, acc: &mut A, update: F)
+    pub fn reduce<A, Reg, F>(&self, region: &Reg, acc: &mut A, update: F)
     where
-        S: State,
-        F: Fn(&S::Reg, &S::Loc, &mut A),
+        S: State<Gen>,
+        Reg: Region<S, Gen, Loc = Cell<S,Gen>>,
+        F: Fn(&Reg, &<Reg as Region<S, Gen>>::Loc, &mut A),
     {
         for cell in &self.cells {
             update(region, cell, acc);
@@ -112,17 +113,21 @@ impl<S: State<Loc = Cell<S>, Reg = CellRegion>> Torus<S> {
     }
 }
 
-impl<S: State<Loc = Cell<S>, Reg = CellRegion> + GrayScale> Torus<S> {
-    pub fn export(
+impl<S: State<Gen> + GrayScale, Gen: Generation> Torus<S, Gen> {
+    pub fn export<Reg>(
         &self,
-        generation: &S::Gen,
-        context: &S::Context,
+        _region: &Reg,
+        generation: &Gen,
+        context: &<S as GrayScale>::Context,
         export_dir: Option<&PathBuf>,
-    ) -> Result<()> {
+    ) -> Result<()>
+    where
+        Reg: Region<S, Gen, Loc = Cell<S, Gen>>,
+    {
         if let Some(dir) = export_dir {
             create_dir_all(&dir)?;
             match self.tiling {
-                Tiling::Hexagons => export(self, generation, context, &dir)?,
+                Tiling::Hexagons => export::<S, Reg, Gen>(self, generation, context, &dir)?,
                 _ => todo!(),
             }
         }
@@ -130,11 +135,11 @@ impl<S: State<Loc = Cell<S>, Reg = CellRegion> + GrayScale> Torus<S> {
     }
 }
 
-fn create_cells<S: State<Loc = Cell<S>, Reg = CellRegion>, F>(
+fn create_cells<S: State<Gen>, Gen: Generation, F>(
     co_ordinates: &mut Vec<usize>,
     dimensions: &[usize],
-    cells: &mut Vec<Cell<S>>,
-    initial_gen: &S::Gen,
+    cells: &mut Vec<Cell<S, Gen>>,
+    initial_gen: &Gen,
     initial_state: &F,
 ) where
     F: Fn(&[usize]) -> S,
@@ -163,15 +168,18 @@ fn create_cells<S: State<Loc = Cell<S>, Reg = CellRegion>, F>(
     }
     co_ordinates.pop();
 }
-fn connect_orthogonally_and_diagonally<S: State<Loc = Cell<S>, Reg = CellRegion>>(
-    torus: &Torus<S>,
-) -> Result<()> {
+
+fn connect_orthogonally_and_diagonally<S, Gen>(torus: &Torus<S, Gen>) -> Result<()>
+where
+    S: State<Gen>,
+    Gen: Generation,
+{
     connect_orthogonally(torus)?;
     connect_diagonally(torus)?;
     Ok(())
 }
 
-fn connect_orthogonally<S: State<Loc = Cell<S>, Reg = CellRegion>>(torus: &Torus<S>) -> Result<()> {
+fn connect_orthogonally<S: State<Gen>, Gen: Generation>(torus: &Torus<S, Gen>) -> Result<()> {
     let cells = &torus.cells;
     let mut co_ordinates = Vec::<usize>::new();
     let dimensionality = torus.dimensions.len();
@@ -199,7 +207,7 @@ fn connect_orthogonally<S: State<Loc = Cell<S>, Reg = CellRegion>>(torus: &Torus
     Ok(())
 }
 
-fn connect_diagonally<S: State<Loc = Cell<S>, Reg = CellRegion>>(torus: &Torus<S>) -> Result<()> {
+fn connect_diagonally<S: State<Gen>, Gen: Generation>(torus: &Torus<S, Gen>) -> Result<()> {
     let cells = &torus.cells;
     let mut co_ordinates = Vec::<usize>::new();
     let dimensionality = torus.dimensions.len();
@@ -269,10 +277,10 @@ pub fn get_index(co_ordinates: &[usize], dimensions: &[usize]) -> Result<usize> 
     Ok(result)
 }
 
-fn orthogonal_to_strings<S: State<Loc = Cell<S>, Reg = CellRegion>>(
-    cells: &[Cell<S>],
+fn orthogonal_to_strings<S: State<Gen>, Gen: Generation>(
+    cells: &[Cell<S, Gen>],
     dimensions: &[usize],
-    generation: &S::Gen,
+    generation: &Gen,
     result: &mut Vec<String>,
 ) {
     let dimensionality = dimensions.len();
@@ -296,7 +304,7 @@ fn orthogonal_to_strings<S: State<Loc = Cell<S>, Reg = CellRegion>>(
     }
 }
 
-fn connect_hexagons<S: State<Loc = Cell<S>, Reg = CellRegion>>(torus: &Torus<S>) -> Result<()> {
+fn connect_hexagons<S: State<Gen>, Gen: Generation>(torus: &Torus<S, Gen>) -> Result<()> {
     if torus.dimensions.len() != 2 {
         return Err(anyhow!("Tiling with triangles is only possible in 2-D"));
     }
@@ -352,10 +360,10 @@ fn connect_hexagons<S: State<Loc = Cell<S>, Reg = CellRegion>>(torus: &Torus<S>)
     Ok(())
 }
 
-fn hexagons_to_strings<S: State<Loc = Cell<S>, Reg = CellRegion>>(
-    cells: &[Cell<S>],
+fn hexagons_to_strings<S: State<Gen>, Gen: Generation>(
+    cells: &[Cell<S, Gen>],
     dimensions: &[usize],
-    generation: &S::Gen,
+    generation: &Gen,
     result: &mut Vec<String>,
 ) {
     let height = dimensions[0];
@@ -375,10 +383,10 @@ fn hexagons_to_strings<S: State<Loc = Cell<S>, Reg = CellRegion>>(
     }
 }
 
-fn line_to_string<S: State<Loc = Cell<S>, Reg = CellRegion>>(
-    cells: &[Cell<S>],
+fn line_to_string<S: State<Gen>, Gen: Generation>(
+    cells: &[Cell<S, Gen>],
     width: usize,
-    generation: &S::Gen,
+    generation: &Gen,
     offset: usize,
     prefix: &str,
     sep: &str,
@@ -395,10 +403,10 @@ fn line_to_string<S: State<Loc = Cell<S>, Reg = CellRegion>>(
     line
 }
 
-fn export<S: State<Loc = Cell<S>, Reg = CellRegion> + GrayScale>(
-    torus: &Torus<S>,
-    generation: &S::Gen,
-    context: &S::Context,
+fn export<S: State<Gen> + GrayScale, Reg: Region<S, Gen, Loc = Cell<S, Gen>>, Gen: Generation>(
+    torus: &Torus<S, Gen>,
+    generation: &Gen,
+    context: &<S as GrayScale>::Context,
     dir: &PathBuf,
 ) -> Result<()> {
     if torus.dimensions.len() != 2 {
