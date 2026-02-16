@@ -1,7 +1,7 @@
 use std::fmt::{Display, Write};
 
 use crate::{
-    cell::{Cell, Generation, State},
+    cell::{Cell, Generation, Location, State},
     torus::{Tiling, Torus},
 };
 use anyhow::Result;
@@ -21,6 +21,7 @@ impl Conway {
 
 impl State for Conway {
     type Gen = usize;
+    type Loc = Cell<Self>;
 
     fn update(cell: &Cell<Conway>, generation: &usize) -> Result<Conway> {
         trace!("Update: [{}]", cell.id());

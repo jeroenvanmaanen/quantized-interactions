@@ -1,6 +1,8 @@
 mod cell;
 mod conway;
 mod experiment;
+mod patch;
+mod patch_poc;
 mod torus;
 mod wave;
 
@@ -35,6 +37,9 @@ enum Commands {
         #[arg(help = "execute debug function", required = false, long)]
         debug: bool,
     },
+
+    #[command(about = "proof-of-concept for patches of cells")]
+    PatchPoC,
 }
 
 pub fn main() -> Result<()> {
@@ -55,6 +60,7 @@ pub fn main() -> Result<()> {
         }
         Some(Commands::Conway) => conway::example()?,
         Some(Commands::Experiment) => experiment::example()?,
+        Some(Commands::PatchPoC) => patch_poc::example()?,
         None => help()?,
     }
 

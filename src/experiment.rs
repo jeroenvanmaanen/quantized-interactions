@@ -1,5 +1,5 @@
 use crate::{
-    cell::{Cell, Generation, State},
+    cell::{Cell, Generation, Location, State},
     torus::{Tiling, Torus},
 };
 use anyhow::Result;
@@ -23,6 +23,7 @@ impl Rotate {
 
 impl State for Rotate {
     type Gen = usize;
+    type Loc = Cell<Self>;
 
     fn update(cell: &Cell<Rotate>, generation: &usize) -> Result<Rotate> {
         trace!("Update: [{}]", cell.id());

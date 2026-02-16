@@ -7,7 +7,7 @@ use anyhow::{Result, anyhow};
 use image::{GrayImage, Luma};
 use log::{debug, info, trace};
 
-use crate::cell::{Cell, GrayScale, State};
+use crate::cell::{Cell, GrayScale, Location, State};
 
 #[allow(dead_code)]
 #[derive(Clone, Copy)]
@@ -19,13 +19,13 @@ pub enum Tiling {
     Hexagons,
 }
 
-pub struct Torus<S: State> {
+pub struct Torus<S: State<Loc = Cell<S>>> {
     tiling: Tiling,
     dimensions: Vec<usize>,
     cells: Vec<Cell<S>>,
 }
 
-impl<S: State> Torus<S> {
+impl<S: State<Loc = Cell<S>>> Torus<S> {
     pub fn new<C, F>(
         origin: C,
         tiling: Tiling,
@@ -108,7 +108,7 @@ impl<S: State> Torus<S> {
     }
 }
 
-impl<S: State + GrayScale> Torus<S> {
+impl<S: State<Loc = Cell<S>> + GrayScale> Torus<S> {
     pub fn export(
         &self,
         generation: &S::Gen,
@@ -126,7 +126,7 @@ impl<S: State + GrayScale> Torus<S> {
     }
 }
 
-fn create_cells<S: State, F>(
+fn create_cells<S: State<Loc = Cell<S>>, F>(
     co_ordinates: &mut Vec<usize>,
     dimensions: &[usize],
     cells: &mut Vec<Cell<S>>,
@@ -159,13 +159,13 @@ fn create_cells<S: State, F>(
     }
     co_ordinates.pop();
 }
-fn connect_orthogonally_and_diagonally<S: State>(torus: &Torus<S>) -> Result<()> {
+fn connect_orthogonally_and_diagonally<S: State<Loc = Cell<S>>>(torus: &Torus<S>) -> Result<()> {
     connect_orthogonally(torus)?;
     connect_diagonally(torus)?;
     Ok(())
 }
 
-fn connect_orthogonally<S: State>(torus: &Torus<S>) -> Result<()> {
+fn connect_orthogonally<S: State<Loc = Cell<S>>>(torus: &Torus<S>) -> Result<()> {
     let cells = &torus.cells;
     let mut co_ordinates = Vec::<usize>::new();
     let dimensionality = torus.dimensions.len();
@@ -193,7 +193,7 @@ fn connect_orthogonally<S: State>(torus: &Torus<S>) -> Result<()> {
     Ok(())
 }
 
-fn connect_diagonally<S: State>(torus: &Torus<S>) -> Result<()> {
+fn connect_diagonally<S: State<Loc = Cell<S>>>(torus: &Torus<S>) -> Result<()> {
     let cells = &torus.cells;
     let mut co_ordinates = Vec::<usize>::new();
     let dimensionality = torus.dimensions.len();
@@ -263,7 +263,7 @@ pub fn get_index(co_ordinates: &[usize], dimensions: &[usize]) -> Result<usize> 
     Ok(result)
 }
 
-fn orthogonal_to_strings<S: State>(
+fn orthogonal_to_strings<S: State<Loc = Cell<S>>>(
     cells: &[Cell<S>],
     dimensions: &[usize],
     generation: &S::Gen,
@@ -290,7 +290,7 @@ fn orthogonal_to_strings<S: State>(
     }
 }
 
-fn connect_hexagons<S: State>(torus: &Torus<S>) -> Result<()> {
+fn connect_hexagons<S: State<Loc = Cell<S>>>(torus: &Torus<S>) -> Result<()> {
     if torus.dimensions.len() != 2 {
         return Err(anyhow!("Tiling with triangles is only possible in 2-D"));
     }
@@ -346,7 +346,7 @@ fn connect_hexagons<S: State>(torus: &Torus<S>) -> Result<()> {
     Ok(())
 }
 
-fn hexagons_to_strings<S: State>(
+fn hexagons_to_strings<S: State<Loc = Cell<S>>>(
     cells: &[Cell<S>],
     dimensions: &[usize],
     generation: &S::Gen,
@@ -369,7 +369,7 @@ fn hexagons_to_strings<S: State>(
     }
 }
 
-fn line_to_string<S: State>(
+fn line_to_string<S: State<Loc = Cell<S>>>(
     cells: &[Cell<S>],
     width: usize,
     generation: &S::Gen,
@@ -389,7 +389,7 @@ fn line_to_string<S: State>(
     line
 }
 
-fn export<S: State + GrayScale>(
+fn export<S: State<Loc = Cell<S>> + GrayScale>(
     torus: &Torus<S>,
     generation: &S::Gen,
     context: &S::Context,

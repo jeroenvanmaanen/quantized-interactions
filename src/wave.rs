@@ -6,7 +6,7 @@ use std::{
 };
 
 use crate::{
-    cell::{Cell, Generation, GrayScale, State},
+    cell::{Cell, Generation, GrayScale, Location, State},
     torus::{Tiling, Torus, get_index},
 };
 use anyhow::Result;
@@ -34,6 +34,7 @@ impl Wave {
 
 impl State for Wave {
     type Gen = usize;
+    type Loc = Cell<Self>;
 
     fn update(cell: &Cell<Wave>, generation: &usize) -> Result<Wave> {
         trace!("Update: [{}]", cell.id());
@@ -142,6 +143,7 @@ struct Coords(usize, usize, usize);
 
 impl State for Coords {
     type Gen = usize;
+    type Loc = Cell<Self>;
 
     fn update(cell: &Cell<Coords>, generation: &usize) -> Result<Coords> {
         return Ok(cell.state(generation).unwrap_or_default());
@@ -198,7 +200,10 @@ fn smallest_local_maximum(torus: &Torus<Wave>, generation: &<Wave as State>::Gen
     result
 }
 
-fn local_maximum(cell: &Cell<Wave>, generation: &<Wave as State>::Gen) -> Result<Option<f64>> {
+fn local_maximum<L: Location<Wave>>(
+    cell: &L,
+    generation: &<Wave as State>::Gen,
+) -> Result<Option<f64>> {
     if let Some(this_state) = cell.state(generation) {
         let amplitude = this_state.amplitude.abs();
         if amplitude <= 0.0 {

@@ -13,8 +13,16 @@ use uuid::Uuid;
 pub trait Generation: Hash + Eq + PartialEq + Debug + Clone {
     fn successor(&self) -> Self;
 }
+// pub trait Region<S: State> {
+//     fn state(&self, location: &S::Loc) -> Option<S>;
+// }
+pub trait Location<S: State>: Sized {
+    fn neighbors(&self) -> Result<RwLockReadGuard<'_, HashSet<Cell<S>>>>;
+    fn state(&self, generation: &S::Gen) -> Option<S>;
+}
 pub trait State: Debug + Clone + Display {
     type Gen: Generation;
+    type Loc: Location<Self>;
 
     fn update(cell: &Cell<Self>, generation: &Self::Gen) -> Result<Self>;
 }
@@ -28,6 +36,9 @@ impl Generation for usize {
         self + 1
     }
 }
+
+// #[derive(Default)]
+// pub struct CellRegion;
 
 #[derive(Debug)]
 pub struct Cell<S: State>(Rc<InnerCell<S>>);
@@ -51,7 +62,27 @@ impl<S: State> PartialEq for Cell<S> {
 }
 impl<S: State> Eq for Cell<S> {}
 
-impl<S: State> Cell<S> {
+impl<S: State> Location<S> for Cell<S> {
+    fn neighbors(&self) -> Result<RwLockReadGuard<'_, HashSet<Cell<S>>>> {
+        self.0.neighbors.read().map_err(|e| {
+            anyhow!(
+                "Could not get read lock for neighbors of: {:?}: {:?}",
+                self.0.id,
+                e
+            )
+        })
+    }
+
+    fn state(&self, generation: &S::Gen) -> Option<S> {
+        let guard = self.0.state_map.read().ok();
+        guard.map(|m| m.get(generation).map(Clone::clone)).flatten()
+    }
+}
+
+impl<S: State<Loc = Cell<S>>> Cell<S>
+where
+//    <S as State>::Loc: Cell<S>,
+{
     pub fn new(generation: S::Gen, state: S) -> Self {
         Cell(Rc::new(InnerCell::new(generation, state)))
     }
@@ -60,24 +91,9 @@ impl<S: State> Cell<S> {
         &self.0.id
     }
 
-    pub fn state(&self, generation: &S::Gen) -> Option<S> {
-        let guard = self.0.state_map.read().ok();
-        guard.map(|m| m.get(generation).map(Clone::clone)).flatten()
-    }
-
     pub fn has_state(&self, generation: &S::Gen) -> bool {
         let guard = self.0.state_map.read().ok();
         guard.map(|m| m.get(generation).is_some()).unwrap_or(false)
-    }
-
-    pub fn neighbors(&self) -> Result<RwLockReadGuard<'_, HashSet<Cell<S>>>> {
-        self.0.neighbors.read().map_err(|e| {
-            anyhow!(
-                "Could not get read lock for neighbors of: {:?}: {:?}",
-                self.0.id,
-                e
-            )
-        })
     }
 
     pub fn join(&self, other: &Self) -> Result<()> {
@@ -103,7 +119,7 @@ impl<S: State> Cell<S> {
     }
 }
 
-fn connect_cells<S: State>(this: &Cell<S>, that: &Cell<S>) -> Result<()> {
+fn connect_cells<S: State<Loc = Cell<S>>>(this: &Cell<S>, that: &Cell<S>) -> Result<()> {
     let mut neighbors_lock = this
         .0
         .neighbors
