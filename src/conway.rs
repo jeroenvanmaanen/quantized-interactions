@@ -1,12 +1,13 @@
 use std::fmt::{Display, Write};
 
 use crate::{
-    cell::{Cell, Generation, Location, Region, State},
+    cell::{Generation, Location, Region, State},
     torus::{Tiling, Torus},
 };
 use anyhow::Result;
 // use log::debug;
-use log::{info, trace};
+// use log::info;
+use log::trace;
 
 #[derive(Clone, Debug)]
 pub struct Conway {
@@ -53,21 +54,15 @@ impl Display for Conway {
 }
 
 pub fn example() -> Result<()> {
-    let origin = Cell::new(0usize, Conway::new(false));
-    let other = Cell::new(1usize, Conway::new(true));
-    origin.join(&other)?;
-    info!("Origin: [{origin:?}]");
     let width = 5;
     let height = 5;
     let generation = 0usize;
     let torus = Torus::new(
-        origin.clone(),
         Tiling::OrthogonalAndDiagonal,
         &[width, height],
         generation.clone(),
         |v: &[usize]| Conway::new(v[1] == 2 && (v[0] >= 1 && v[0] <= 3)),
     )?;
-    info!("Origin: [{origin:?}]");
     torus.info(&generation);
     torus.update_all(&0usize)?;
     let generation = generation.successor();

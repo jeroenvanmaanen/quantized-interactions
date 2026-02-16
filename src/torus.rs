@@ -27,15 +27,13 @@ pub struct Torus<S: State<Gen>, Gen: Generation> {
 }
 
 impl<S: State<Gen>, Gen: Generation> Torus<S, Gen> {
-    pub fn new<C, F>(
-        origin: C,
+    pub fn new<F>(
         tiling: Tiling,
         dimensions: &[usize],
         initial_gen: Gen,
         initial_state: F,
     ) -> Result<Torus<S, Gen>>
     where
-        C: Into<Cell<S, Gen>>,
         F: Fn(&[usize]) -> S,
     {
         let mut cardinality = 1usize;
@@ -43,19 +41,14 @@ impl<S: State<Gen>, Gen: Generation> Torus<S, Gen> {
             cardinality *= dimensions[i];
         }
         let mut cells = Vec::with_capacity(cardinality);
-        if cardinality > 1 {
-            let mut co_ordinates = Vec::new();
-            create_cells(
-                &mut co_ordinates,
-                &dimensions,
-                &mut cells,
-                &initial_gen,
-                &initial_state,
-            );
-            cells[0] = origin.into();
-        } else {
-            cells.push(origin.into());
-        }
+        let mut co_ordinates = Vec::new();
+        create_cells(
+            &mut co_ordinates,
+            &dimensions,
+            &mut cells,
+            &initial_gen,
+            &initial_state,
+        );
         debug!("Torus: Number of cells: [{}]", cells.len());
 
         let torus = Torus {

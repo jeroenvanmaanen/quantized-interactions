@@ -1,10 +1,11 @@
 use crate::{
-    cell::{Cell, Generation, Location, Region, State},
+    cell::{Generation, Location, Region, State},
     torus::{Tiling, Torus},
 };
 use anyhow::Result;
 // use log::debug;
-use log::{info, trace};
+// use log::info;
+use log::trace;
 use std::{
     f64::consts::PI,
     fmt::{Display, Write},
@@ -87,17 +88,14 @@ fn symmetric(angle: f64) -> f64 {
 }
 
 pub fn example() -> Result<()> {
-    let origin = Cell::new(0usize, Rotate::new(0.0));
     let dimensions = [5, 5, 5];
     let generation = 0usize;
     let torus = Torus::new(
-        origin.clone(),
         Tiling::Orthogonal,
         &dimensions,
         generation.clone(),
         |v: &[usize]| Rotate::new(experiment_init(v, &dimensions)),
     )?;
-    info!("Origin: [{origin:?}]");
     torus.info(&generation);
     torus.update_all(&0usize)?;
     let generation = generation.successor();

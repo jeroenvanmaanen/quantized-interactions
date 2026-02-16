@@ -1,5 +1,5 @@
 use crate::{
-    cell::{Cell, Generation, GrayScale, Location, Region, Space, State},
+    cell::{Generation, GrayScale, Location, Region, Space, State},
     torus::{Tiling, Torus, get_index},
 };
 use anyhow::Result;
@@ -118,13 +118,10 @@ impl GrayScale for Wave {
 }
 
 pub fn example(size: usize, export_dir: Option<&PathBuf>) -> Result<()> {
-    let origin = Cell::new(0usize, Wave::new(0.0, false));
-    info!("Origin: [{origin:?}]");
     let width = size;
     let height = size;
     let mut generation = 0usize;
     let torus = Torus::new(
-        origin.clone(),
         Tiling::Hexagons,
         &[height, width],
         generation.clone(),
@@ -133,7 +130,6 @@ pub fn example(size: usize, export_dir: Option<&PathBuf>) -> Result<()> {
             Wave::new(0.0, c)
         },
     )?;
-    info!("Origin: [{origin:?}]");
     let torus = Rc::new(torus);
     // torus.info(&generation);
     for i in 1..=(size * 10) {
@@ -171,14 +167,11 @@ impl Display for Coords {
 }
 
 pub fn debug(size: usize) -> Result<()> {
-    let origin = Cell::new(0usize, Coords(0, 0, 0));
-    info!("Origin: [{origin:?}]");
     let width = size;
     let height = size;
     let dimensions = [height, width];
     let generation = 0usize;
     let torus = Torus::new(
-        origin.clone(),
         Tiling::Hexagons,
         &dimensions,
         generation.clone(),
