@@ -1,4 +1,4 @@
-use std::fmt::Display;
+use std::{collections::HashSet, fmt::Display};
 
 use crate::{
     cell::{Cell, Location, State},
@@ -17,15 +17,16 @@ impl Display for Trivial {
 }
 
 impl Location<Trivial> for u8 {
-    fn neighbors(
-        &self,
-    ) -> Result<std::sync::RwLockReadGuard<'_, std::collections::HashSet<crate::cell::Cell<Trivial>>>>
-    {
-        todo!()
+    fn neighbors(&self) -> Result<impl IntoIterator<Item = Self>> {
+        Ok(HashSet::new())
     }
 
     fn state(&self, _generation: &<Trivial as State>::Gen) -> Option<Trivial> {
         Some(Trivial::default())
+    }
+
+    fn id(&self) -> String {
+        format!("{}", &self)
     }
 }
 

@@ -6,7 +6,7 @@ use std::{
     fmt::{Debug, Display},
     hash::Hash,
     rc::Rc,
-    sync::{RwLock, RwLockReadGuard},
+    sync::RwLock,
 };
 use uuid::Uuid;
 
@@ -17,8 +17,9 @@ pub trait Generation: Hash + Eq + PartialEq + Debug + Clone {
 //     fn state(&self, location: &S::Loc) -> Option<S>;
 // }
 pub trait Location<S: State>: Sized {
-    fn neighbors(&self) -> Result<RwLockReadGuard<'_, HashSet<Cell<S>>>>;
+    fn neighbors(&self) -> Result<impl IntoIterator<Item = Self>>;
     fn state(&self, generation: &S::Gen) -> Option<S>;
+    fn id(&self) -> String;
 }
 pub trait State: Debug + Clone + Display {
     type Gen: Generation;
@@ -63,8 +64,8 @@ impl<S: State> PartialEq for Cell<S> {
 impl<S: State> Eq for Cell<S> {}
 
 impl<S: State> Location<S> for Cell<S> {
-    fn neighbors(&self) -> Result<RwLockReadGuard<'_, HashSet<Cell<S>>>> {
-        self.0.neighbors.read().map_err(|e| {
+    fn neighbors(&self) -> Result<impl IntoIterator<Item = Self>> {
+        self.0.neighbors.read().map(|s| s.clone()).map_err(|e| {
             anyhow!(
                 "Could not get read lock for neighbors of: {:?}: {:?}",
                 self.0.id,
@@ -77,6 +78,10 @@ impl<S: State> Location<S> for Cell<S> {
         let guard = self.0.state_map.read().ok();
         guard.map(|m| m.get(generation).map(Clone::clone)).flatten()
     }
+
+    fn id(&self) -> String {
+        self.0.id.to_string()
+    }
 }
 
 impl<S: State<Loc = Cell<S>>> Cell<S>
@@ -85,10 +90,6 @@ where
 {
     pub fn new(generation: S::Gen, state: S) -> Self {
         Cell(Rc::new(InnerCell::new(generation, state)))
-    }
-
-    pub fn id(&self) -> &Uuid {
-        &self.0.id
     }
 
     pub fn has_state(&self, generation: &S::Gen) -> bool {

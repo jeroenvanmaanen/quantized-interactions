@@ -40,7 +40,7 @@ impl State for Wave {
         trace!("Update: [{}]", cell.id());
         let this_state = cell.state(generation).unwrap_or_default();
         trace!("This state: [{this_state:?}]");
-        let neighbors_lock = cell.neighbors()?;
+        let neighbors = cell.neighbors()?;
         let mut next_amplitude = this_state.amplitude;
         let mut next_velocity = this_state.velocity;
         next_amplitude += next_velocity;
@@ -50,9 +50,11 @@ impl State for Wave {
             let angle = (*generation as f64) / 40.0;
             next_amplitude = angle.sin() * 30.0;
             next_velocity = angle.cos();
-            count = neighbors_lock.len() as u8;
+            for _ in neighbors {
+                count += 1;
+            }
         } else if let Some(this_c) = this_state.neighbor_count {
-            for neighbor in neighbors_lock.iter() {
+            for neighbor in neighbors {
                 trace!("Neigbor: [{}]", neighbor.id());
                 if let Some(other_state) = neighbor.state(generation) {
                     if let Some(c) = other_state.neighbor_count {
@@ -67,7 +69,9 @@ impl State for Wave {
                 }
             }
         } else {
-            count = neighbors_lock.len() as u8;
+            for _ in neighbors {
+                count += 1;
+            }
         }
         trace!("Neighbor count: {}: {} (err: {})", cell.id(), count, err);
         let new_count = if count > 0 { Some(count) } else { None };
@@ -209,7 +213,7 @@ fn local_maximum<L: Location<Wave>>(
         if amplitude <= 0.0 {
             return Ok(None);
         }
-        for neighbor in cell.neighbors()?.iter() {
+        for neighbor in cell.neighbors()? {
             if let Some(other_state) = neighbor.state(generation) {
                 if other_state.amplitude.abs() > amplitude {
                     return Ok(None);

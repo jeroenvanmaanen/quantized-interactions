@@ -23,13 +23,12 @@ impl State for Conway {
     type Gen = usize;
     type Loc = Cell<Self>;
 
-    fn update(cell: &Cell<Conway>, generation: &usize) -> Result<Conway> {
+    fn update(cell: &Self::Loc, generation: &usize) -> Result<Conway> {
         trace!("Update: [{}]", cell.id());
         let this_state = cell.state(generation).map(|s| s.alive).unwrap_or(false);
         trace!("This state: [{this_state:?}]");
-        let neighbors_lock = cell.neighbors()?;
         let mut count = 0;
-        for neighbor in neighbors_lock.iter() {
+        for neighbor in cell.neighbors()? {
             trace!("Neigbor: [{}]", neighbor.id());
             if let Some(state) = neighbor.state(generation) {
                 if state.alive {
