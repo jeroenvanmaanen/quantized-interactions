@@ -1,7 +1,7 @@
 use std::fmt::{Display, Write};
 
 use crate::{
-    cell::{Cell, Generation, Location, State},
+    cell::{Cell, CellRegion, Generation, Location, Region, State},
     torus::{Tiling, Torus},
 };
 use anyhow::Result;
@@ -21,16 +21,19 @@ impl Conway {
 
 impl State for Conway {
     type Gen = usize;
+    type Reg = CellRegion;
     type Loc = Cell<Self>;
 
-    fn update(cell: &Self::Loc, generation: &usize) -> Result<Conway> {
+    fn update(region: &Self::Reg, cell: &Self::Loc, generation: &Self::Gen) -> Result<Self> {
         trace!("Update: [{}]", cell.id());
-        let this_state = cell.state(generation).map(|s| s.alive).unwrap_or(false);
+        let this_state = (region.state(cell, generation) as Option<Self>)
+            .map(|s| s.alive)
+            .unwrap_or(false);
         trace!("This state: [{this_state:?}]");
         let mut count = 0;
         for neighbor in cell.neighbors()? {
             trace!("Neigbor: [{}]", neighbor.id());
-            if let Some(state) = neighbor.state(generation) {
+            if let Some(state) = region.state(&neighbor, generation) as Option<Self> {
                 if state.alive {
                     count += 1;
                 }

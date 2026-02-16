@@ -7,7 +7,7 @@ use anyhow::{Result, anyhow};
 use image::{GrayImage, Luma};
 use log::{debug, info, trace};
 
-use crate::cell::{Cell, GrayScale, Location, State};
+use crate::cell::{Cell, CellRegion, GrayScale, Location, Region, State};
 
 #[allow(dead_code)]
 #[derive(Clone, Copy)]
@@ -25,7 +25,7 @@ pub struct Torus<S: State<Loc = Cell<S>>> {
     cells: Vec<Cell<S>>,
 }
 
-impl<S: State<Loc = Cell<S>>> Torus<S> {
+impl<S: State<Loc = Cell<S>, Reg = CellRegion>> Torus<S> {
     pub fn new<C, F>(
         origin: C,
         tiling: Tiling,
@@ -101,14 +101,18 @@ impl<S: State<Loc = Cell<S>>> Torus<S> {
         Ok(())
     }
 
-    pub fn reduce<A, F: Fn(&Cell<S>, &mut A)>(&self, acc: &mut A, update: F) {
+    pub fn reduce<A, F>(&self, region: &S::Reg, acc: &mut A, update: F)
+    where
+        S: State,
+        F: Fn(&S::Reg, &S::Loc, &mut A),
+    {
         for cell in &self.cells {
-            update(cell, acc);
+            update(region, cell, acc);
         }
     }
 }
 
-impl<S: State<Loc = Cell<S>> + GrayScale> Torus<S> {
+impl<S: State<Loc = Cell<S>, Reg = CellRegion> + GrayScale> Torus<S> {
     pub fn export(
         &self,
         generation: &S::Gen,
@@ -126,7 +130,7 @@ impl<S: State<Loc = Cell<S>> + GrayScale> Torus<S> {
     }
 }
 
-fn create_cells<S: State<Loc = Cell<S>>, F>(
+fn create_cells<S: State<Loc = Cell<S>, Reg = CellRegion>, F>(
     co_ordinates: &mut Vec<usize>,
     dimensions: &[usize],
     cells: &mut Vec<Cell<S>>,
@@ -159,13 +163,15 @@ fn create_cells<S: State<Loc = Cell<S>>, F>(
     }
     co_ordinates.pop();
 }
-fn connect_orthogonally_and_diagonally<S: State<Loc = Cell<S>>>(torus: &Torus<S>) -> Result<()> {
+fn connect_orthogonally_and_diagonally<S: State<Loc = Cell<S>, Reg = CellRegion>>(
+    torus: &Torus<S>,
+) -> Result<()> {
     connect_orthogonally(torus)?;
     connect_diagonally(torus)?;
     Ok(())
 }
 
-fn connect_orthogonally<S: State<Loc = Cell<S>>>(torus: &Torus<S>) -> Result<()> {
+fn connect_orthogonally<S: State<Loc = Cell<S>, Reg = CellRegion>>(torus: &Torus<S>) -> Result<()> {
     let cells = &torus.cells;
     let mut co_ordinates = Vec::<usize>::new();
     let dimensionality = torus.dimensions.len();
@@ -193,7 +199,7 @@ fn connect_orthogonally<S: State<Loc = Cell<S>>>(torus: &Torus<S>) -> Result<()>
     Ok(())
 }
 
-fn connect_diagonally<S: State<Loc = Cell<S>>>(torus: &Torus<S>) -> Result<()> {
+fn connect_diagonally<S: State<Loc = Cell<S>, Reg = CellRegion>>(torus: &Torus<S>) -> Result<()> {
     let cells = &torus.cells;
     let mut co_ordinates = Vec::<usize>::new();
     let dimensionality = torus.dimensions.len();
@@ -263,7 +269,7 @@ pub fn get_index(co_ordinates: &[usize], dimensions: &[usize]) -> Result<usize> 
     Ok(result)
 }
 
-fn orthogonal_to_strings<S: State<Loc = Cell<S>>>(
+fn orthogonal_to_strings<S: State<Loc = Cell<S>, Reg = CellRegion>>(
     cells: &[Cell<S>],
     dimensions: &[usize],
     generation: &S::Gen,
@@ -290,7 +296,7 @@ fn orthogonal_to_strings<S: State<Loc = Cell<S>>>(
     }
 }
 
-fn connect_hexagons<S: State<Loc = Cell<S>>>(torus: &Torus<S>) -> Result<()> {
+fn connect_hexagons<S: State<Loc = Cell<S>, Reg = CellRegion>>(torus: &Torus<S>) -> Result<()> {
     if torus.dimensions.len() != 2 {
         return Err(anyhow!("Tiling with triangles is only possible in 2-D"));
     }
@@ -346,7 +352,7 @@ fn connect_hexagons<S: State<Loc = Cell<S>>>(torus: &Torus<S>) -> Result<()> {
     Ok(())
 }
 
-fn hexagons_to_strings<S: State<Loc = Cell<S>>>(
+fn hexagons_to_strings<S: State<Loc = Cell<S>, Reg = CellRegion>>(
     cells: &[Cell<S>],
     dimensions: &[usize],
     generation: &S::Gen,
@@ -369,7 +375,7 @@ fn hexagons_to_strings<S: State<Loc = Cell<S>>>(
     }
 }
 
-fn line_to_string<S: State<Loc = Cell<S>>>(
+fn line_to_string<S: State<Loc = Cell<S>, Reg = CellRegion>>(
     cells: &[Cell<S>],
     width: usize,
     generation: &S::Gen,
@@ -377,10 +383,10 @@ fn line_to_string<S: State<Loc = Cell<S>>>(
     prefix: &str,
     sep: &str,
 ) -> String {
+    let region = CellRegion::default();
     let mut line = prefix.to_string();
     for x in 0..width {
-        let s = cells[(x + offset) % width]
-            .state(generation)
+        let s = (region.state(&cells[(x + offset) % width], generation) as Option<S>)
             .map(|s| format!("{s}"))
             .unwrap_or("?".to_string());
         line.push_str(&s);
@@ -389,7 +395,7 @@ fn line_to_string<S: State<Loc = Cell<S>>>(
     line
 }
 
-fn export<S: State<Loc = Cell<S>> + GrayScale>(
+fn export<S: State<Loc = Cell<S>, Reg = CellRegion> + GrayScale>(
     torus: &Torus<S>,
     generation: &S::Gen,
     context: &S::Context,
@@ -402,13 +408,13 @@ fn export<S: State<Loc = Cell<S>> + GrayScale>(
     let width = torus.dimensions[1];
     let mut img = GrayImage::new((width * 4 + 2) as u32, (height * 3 + 1) as u32);
 
+    let region = CellRegion::default();
     let mut offset = 0;
     for y in 0..height {
         let line = &torus.cells[offset..(offset + width)];
         let xs = if (y % 2) == 0 { 2 } else { 0 };
         for x in 0..width {
-            let gray = line[x]
-                .state(generation)
+            let gray = (region.state(&line[x], generation) as Option<S>)
                 .map(|s| s.gray_value(context))
                 .unwrap_or(128);
             let luma = [gray];

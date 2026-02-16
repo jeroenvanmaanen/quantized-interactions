@@ -1,7 +1,7 @@
 use std::{collections::HashSet, fmt::Display};
 
 use crate::{
-    cell::{Cell, Location, State},
+    cell::{Cell, Location, Region, State},
     patch::{AtMostSixNeighbors, Patch},
 };
 
@@ -21,20 +21,23 @@ impl Location<Trivial> for u8 {
         Ok(HashSet::new())
     }
 
-    fn state(&self, _generation: &<Trivial as State>::Gen) -> Option<Trivial> {
-        Some(Trivial::default())
-    }
-
     fn id(&self) -> String {
         format!("{}", &self)
     }
 }
 
+impl Region<Trivial> for () {
+    fn state(&self, _: &<Trivial as State>::Loc, _: &<Trivial as State>::Gen) -> Option<Trivial> {
+        None
+    }
+}
+
 impl State for Trivial {
     type Gen = usize;
+    type Reg = ();
     type Loc = Cell<Trivial>;
 
-    fn update(_cell: &Self::Loc, _generation: &Self::Gen) -> Result<Self> {
+    fn update(_: &(), _cell: &Self::Loc, _generation: &Self::Gen) -> Result<Self> {
         Ok(Trivial)
     }
 }

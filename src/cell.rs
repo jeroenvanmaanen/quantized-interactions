@@ -13,19 +13,19 @@ use uuid::Uuid;
 pub trait Generation: Hash + Eq + PartialEq + Debug + Clone {
     fn successor(&self) -> Self;
 }
-// pub trait Region<S: State> {
-//     fn state(&self, location: &S::Loc) -> Option<S>;
-// }
+pub trait Region<S: State> {
+    fn state(&self, location: &S::Loc, generation: &S::Gen) -> Option<S>;
+}
 pub trait Location<S: State>: Sized {
     fn neighbors(&self) -> Result<impl IntoIterator<Item = Self>>;
-    fn state(&self, generation: &S::Gen) -> Option<S>;
     fn id(&self) -> String;
 }
 pub trait State: Debug + Clone + Display {
     type Gen: Generation;
+    type Reg: Region<Self>;
     type Loc: Location<Self>;
 
-    fn update(cell: &Cell<Self>, generation: &Self::Gen) -> Result<Self>;
+    fn update(region: &Self::Reg, location: &Self::Loc, generation: &Self::Gen) -> Result<Self>;
 }
 pub trait GrayScale {
     type Context;
@@ -38,8 +38,14 @@ impl Generation for usize {
     }
 }
 
-// #[derive(Default)]
-// pub struct CellRegion;
+#[derive(Default)]
+pub struct CellRegion;
+
+impl<S: State<Loc = Cell<S>, Reg = CellRegion>> Region<S> for CellRegion {
+    fn state(&self, location: &<S as State>::Loc, generation: &<S as State>::Gen) -> Option<S> {
+        location.state(self, generation)
+    }
+}
 
 #[derive(Debug)]
 pub struct Cell<S: State>(Rc<InnerCell<S>>);
@@ -74,20 +80,12 @@ impl<S: State> Location<S> for Cell<S> {
         })
     }
 
-    fn state(&self, generation: &S::Gen) -> Option<S> {
-        let guard = self.0.state_map.read().ok();
-        guard.map(|m| m.get(generation).map(Clone::clone)).flatten()
-    }
-
     fn id(&self) -> String {
         self.0.id.to_string()
     }
 }
 
-impl<S: State<Loc = Cell<S>>> Cell<S>
-where
-//    <S as State>::Loc: Cell<S>,
-{
+impl<S: State<Loc = Cell<S>, Reg = CellRegion>> Cell<S> {
     pub fn new(generation: S::Gen, state: S) -> Self {
         Cell(Rc::new(InnerCell::new(generation, state)))
     }
@@ -104,12 +102,18 @@ where
         Ok(())
     }
 
+    fn state(&self, _region: &S::Reg, generation: &S::Gen) -> Option<S> {
+        let guard = self.0.state_map.read().ok();
+        guard.map(|m| m.get(generation).map(Clone::clone)).flatten()
+    }
+
     pub fn update(&self, generation: &S::Gen) -> Result<()> {
         let next_gen = generation.successor();
         if self.has_state(&next_gen) {
             return Ok(());
         }
-        let new_state = S::update(self, &generation)?;
+        let region = CellRegion::default();
+        let new_state = S::update(&region, self, &generation)?;
         let mut guard = self
             .0
             .state_map
