@@ -2,7 +2,7 @@ use std::{collections::HashSet, fmt::Display};
 
 use crate::{
     cell::{Location, Region, State},
-    patch::{AtMostSixNeighbors, Patch},
+    patch::{AtMostSixNeighbors, Inflexible, Patch},
 };
 
 use anyhow::Result;
@@ -50,6 +50,10 @@ impl State<usize> for Trivial {
 
 pub fn example() -> Result<()> {
     let neighbors = AtMostSixNeighbors::default();
-    let _patch = Patch::new_init(neighbors, Trivial::default());
+    let _patch = Patch::new_init(neighbors.clone(), Trivial::default());
+    let circumference = 30;
+    let capacity = circumference * circumference;
+    let generation = 0usize;
+    let _inflexible = Inflexible::new(&neighbors, capacity, &generation, Trivial::default());
     todo!()
 }
