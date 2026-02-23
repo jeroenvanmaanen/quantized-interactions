@@ -2,7 +2,7 @@ mod cell;
 mod conway;
 mod experiment;
 mod patch;
-mod patch_poc;
+mod structure;
 mod torus;
 mod wave;
 
@@ -60,7 +60,7 @@ pub fn main() -> Result<()> {
         }
         Some(Commands::Conway) => conway::example()?,
         Some(Commands::Experiment) => experiment::example()?,
-        Some(Commands::PatchPoC) => patch_poc::example()?,
+        Some(Commands::PatchPoC) => patch::poc_example()?,
         None => help()?,
     }
 

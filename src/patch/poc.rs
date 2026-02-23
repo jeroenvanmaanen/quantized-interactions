@@ -1,8 +1,8 @@
 use std::{collections::HashSet, fmt::Display};
 
 use crate::{
-    cell::{Location, Region, State},
     patch::{AtMostSixNeighbors, Inflexible, Patch},
+    structure::{Location, Region, State},
 };
 
 use anyhow::Result;

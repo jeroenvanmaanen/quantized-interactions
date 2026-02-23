@@ -1,7 +1,8 @@
 use std::fmt::{Display, Write};
 
 use crate::{
-    cell::{Generation, Location, Region, State},
+    cell::CellTorus,
+    structure::{Generation, Location, Region, State},
     torus::{Tiling, Torus},
 };
 use anyhow::Result;
@@ -57,7 +58,7 @@ pub fn example() -> Result<()> {
     let width = 5;
     let height = 5;
     let generation = 0usize;
-    let torus = Torus::new(
+    let torus = CellTorus::new(
         Tiling::OrthogonalAndDiagonal,
         &[width, height],
         generation.clone(),

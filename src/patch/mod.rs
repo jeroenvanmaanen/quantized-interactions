@@ -1,9 +1,13 @@
 #![allow(dead_code)]
 
+mod poc;
+
+pub use poc::example as poc_example;
+
 use anyhow::{Result, anyhow};
 use std::{collections::HashMap, marker::PhantomData, rc::Rc};
 
-use crate::cell::{Generation, State};
+use crate::structure::{Generation, State};
 
 const PATCH_SIZE: u8 = 0xFF;
 const INTERNAL: u8 = 0xD * 0xD;

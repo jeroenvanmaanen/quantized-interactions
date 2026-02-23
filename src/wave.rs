@@ -1,6 +1,7 @@
 use crate::{
-    cell::{Generation, GrayScale, Location, Region, Space, State},
-    torus::{Tiling, Torus, get_index},
+    cell::CellTorus,
+    structure::{Generation, GrayScale, Location, Region, Space, State},
+    torus::{GrayScaleTorus, Tiling, Torus, get_index},
 };
 use anyhow::Result;
 use std::{
@@ -121,7 +122,7 @@ pub fn example(size: usize, export_dir: Option<&PathBuf>) -> Result<()> {
     let width = size;
     let height = size;
     let mut generation = 0usize;
-    let torus = Torus::new(
+    let torus = CellTorus::new(
         Tiling::Hexagons,
         &[height, width],
         generation.clone(),
@@ -171,7 +172,7 @@ pub fn debug(size: usize) -> Result<()> {
     let height = size;
     let dimensions = [height, width];
     let generation = 0usize;
-    let torus = Torus::new(
+    let torus = CellTorus::new(
         Tiling::Hexagons,
         &dimensions,
         generation.clone(),

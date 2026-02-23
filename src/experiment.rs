@@ -1,5 +1,6 @@
 use crate::{
-    cell::{Generation, Location, Region, State},
+    cell::CellTorus,
+    structure::{Generation, Location, Region, State},
     torus::{Tiling, Torus},
 };
 use anyhow::Result;
@@ -90,7 +91,7 @@ fn symmetric(angle: f64) -> f64 {
 pub fn example() -> Result<()> {
     let dimensions = [5, 5, 5];
     let generation = 0usize;
-    let torus = Torus::new(
+    let torus = CellTorus::new(
         Tiling::Orthogonal,
         &dimensions,
         generation.clone(),
