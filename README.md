@@ -2,7 +2,7 @@
 
 This repository is a Rust-project to simulate aspects of quantum mechanics with networks of cellular automata and experiment with the rules that govern their behavior.
 
-After watching the Veritasium item [There is something faster than light](https://www.youtube.com/watch?v=NIk_0AW5hFU), I thought: what if two entangled particles carry copies of a common state state is more complicated than the *outcome* of a measurement. I was thinking of a trick that is used on distributed systems named [consistent hashing](https://en.wikipedia.org/wiki/Consistent_hashing).
+After watching the Veritasium item [There is something faster than light](https://www.youtube.com/watch?v=NIk_0AW5hFU), I thought: what if two entangled particles carry copies of a common state state is more complicated than the *outcome* of a measurement? I was thinking of a trick that is used on distributed systems named [consistent hashing](https://en.wikipedia.org/wiki/Consistent_hashing).
 
 I read on the Wikipedia page on the [electron](https://en.wikipedia.org/wiki/Electron#Size) that the size of an electron could be something like is something like 10<sup>-22</sup>m. That is much bigger than the Planck-length (10<sup>-35</sup>m). Could space be a collection of cellular automata each about the Planck length in size? Then an electron would be a pretty big thing that could carry a lot of information.
 
