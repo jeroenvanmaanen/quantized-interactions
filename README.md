@@ -8,7 +8,7 @@ I read on the Wikipedia page on the [electron](https://en.wikipedia.org/wiki/Ele
 
 Then I thought that the cellular automata could manage potentials of the diverse electric, magnetic, strong and weak force fields. The way these automata are connected could model the geometry that defines space-time and gravity.
 
-May be the wave/particle distinction can be modelled by encoding waves that interfere with, on top of that, particles that are following the potentials and the geometry and that interact when they are close.
+May be the wave/particle distinction can be modelled by encoding waves that interfere with each other, on top of that, particles that are following the potentials and the geometry and that interact when they are close. These interactions could send out new waves that interfere with other waves and modify future opportunities for interactions.
 
 Can we come up with a model that has only local interactions, but still passes the [Bell test](https://en.wikipedia.org/wiki/Bell%27s_theorem)?
 
