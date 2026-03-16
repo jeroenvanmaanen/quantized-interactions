@@ -1,7 +1,7 @@
 use std::{collections::HashSet, fmt::Display};
 
 use crate::{
-    patch::{AtMostSixNeighbors, Inflexible, Patch},
+    patch::{AtMostSixEffectors, Inflexible, Patch},
     structure::{Location, Region, State},
 };
 
@@ -18,7 +18,7 @@ impl Display for Trivial {
 }
 
 impl Location<Trivial, usize> for u8 {
-    fn neighbors(&self) -> Result<impl IntoIterator<Item = Self>> {
+    fn effectors(&self) -> Result<impl IntoIterator<Item = Self>> {
         Ok(HashSet::new())
     }
 
@@ -51,12 +51,12 @@ impl State<usize> for Trivial {
 
 pub fn example() -> Result<()> {
     info!("Patch PoC");
-    let neighbors = AtMostSixNeighbors::default();
+    let effectors = AtMostSixEffectors::default();
     let _patch = Patch::new_init(Trivial::default());
     let circumference = 30;
     let capacity = circumference * circumference;
     let generation = 0usize;
-    let _inflexible = Inflexible::new(neighbors, capacity, &generation, Trivial::default());
+    let _inflexible = Inflexible::new(effectors, capacity, &generation, Trivial::default());
 
     Ok(())
 }

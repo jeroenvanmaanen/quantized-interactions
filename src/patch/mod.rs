@@ -1,3 +1,17 @@
+//! # Patches of cells
+//!
+//! A patch is a collection of nearby cells. The idea is that the interior of a patch is substantially larger than its edges.
+//! Each cell is affected by a number of effectors, *i.e.*, its current state is completely determined by its state in the previous generation and the state of its effectors in the previous generation.
+//!
+//! The structure of connections between effectors and affected cells can be more ore less flexible.
+//! One possibility is that all patheches have the same structure, so there is a single `Effectors` struct for the entire space. This is modeled in stract `Inflexible`.
+//! On the other end of the spectrum each patch could have its own `Effectors` struct. This is not implemented yet.
+//!
+//! The effectors of a cell with index *i* in patch *p<sub>a</sub>* can be found by calling `iter` on the `Effectors` instance that governs patch *p<sub>a</sub>*.
+//! Each invocation of `next` on the resulting iterator yields an index *e* that can be used to determine in which patch the effector can be found.
+//! The global index of the patch that contains the effector *p<sub>e</sub>* can be looked up in the `cell_patches` array in patch *p<sub>a</sub>*.
+//! The state of the effector in *p<sub>e</sub>* can be looked up in the `cell_index` array in patch *p<sub>a</sub>*.
+
 #![allow(dead_code)]
 
 mod poc;
@@ -12,14 +26,14 @@ use crate::structure::{Generation, State};
 const PATCH_SIZE: u8 = 0xFF;
 const INTERNAL: u8 = 0xD * 0xD;
 
-pub struct Inflexible<S: State<Gen> + Copy, Gen: Generation, N: Neighbors> {
+pub struct Inflexible<S: State<Gen> + Copy, Gen: Generation, E: Effectors> {
     adjacent: Vec<HashMap<u8, usize>>,
-    neighbors: N,
+    effectors: E,
     generations: HashMap<Gen, Vec<Patch<S, Gen>>>,
 }
 
-impl<S: State<Gen> + Copy, Gen: Generation, N: Neighbors + Clone> Inflexible<S, Gen, N> {
-    pub fn new(neighbors: N, capacity: usize, generation: &Gen, init: S) -> Self {
+impl<S: State<Gen> + Copy, Gen: Generation, E: Effectors + Clone> Inflexible<S, Gen, E> {
+    pub fn new(effectors: E, capacity: usize, generation: &Gen, init: S) -> Self {
         let patch_count = capacity / (INTERNAL as usize);
         let mut patches = Vec::new();
         let mut adjacent = Vec::new();
@@ -31,7 +45,7 @@ impl<S: State<Gen> + Copy, Gen: Generation, N: Neighbors + Clone> Inflexible<S, 
         generations.insert(generation.clone(), patches);
         Inflexible {
             adjacent,
-            neighbors,
+            effectors,
             generations,
         }
     }
@@ -75,6 +89,7 @@ fn next_adjacent(map: &HashMap<u8, usize>) -> Result<u8> {
 pub struct Patch<S: State<Gen> + Copy, Gen: Generation> {
     cells: [S; PATCH_SIZE as usize],
     cell_patch: [u8; PATCH_SIZE as usize],
+    cell_index: [u8; PATCH_SIZE as usize],
     size: u8,
     _phantom: PhantomData<Gen>,
 }
@@ -88,6 +103,7 @@ where
         Patch {
             cells: [init; PATCH_SIZE as usize],
             cell_patch: [0xFF; PATCH_SIZE as usize],
+            cell_index: [0; PATCH_SIZE as usize],
             size: 0,
             _phantom: PhantomData,
         }
@@ -100,74 +116,74 @@ pub struct Location<S: State<Gen> + Copy, Gen: Generation> {
     _phantom: PhantomData<Gen>,
 }
 
-pub struct NeighborIterator<'a> {
-    neighbors: &'a [u8],
+pub struct EffectorIterator<'a> {
+    effectors: &'a [u8],
     pos: usize,
     to_go: u8,
 }
 
-impl<'a> Iterator for NeighborIterator<'a> {
+impl<'a> Iterator for EffectorIterator<'a> {
     type Item = u8;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.to_go < 1 || self.neighbors[self.pos] == 0xFF {
+        if self.to_go < 1 || self.effectors[self.pos] == 0xFF {
             None
         } else {
             let pos = self.pos;
             self.pos += 1;
             self.to_go -= 1;
-            Some(self.neighbors[pos])
+            Some(self.effectors[pos])
         }
     }
 }
 
-pub trait Neighbors: Default {
-    fn neighbors<'a>(&'a self, index: u8) -> NeighborIterator<'a>;
-    fn add(&mut self, index: u8, neighbor_index: u8) -> Result<u8>;
+pub trait Effectors: Default {
+    fn iter<'a>(&'a self, index: u8) -> EffectorIterator<'a>;
+    fn add(&mut self, index: u8, effector_index: u8) -> Result<u8>;
 }
 
 #[derive(Clone)]
-pub struct AtMostSixNeighbors {
-    neighbor_counts: [u8; PATCH_SIZE as usize],
-    neighbors: [u8; 6 * PATCH_SIZE as usize],
+pub struct AtMostSixEffectors {
+    effector_counts: [u8; PATCH_SIZE as usize],
+    effectors: [u8; 6 * PATCH_SIZE as usize],
 }
 
-impl Default for AtMostSixNeighbors {
+impl Default for AtMostSixEffectors {
     fn default() -> Self {
         let mut result = Self {
-            neighbor_counts: [0; PATCH_SIZE as usize],
-            neighbors: [0xFFu8; 6 * PATCH_SIZE as usize],
+            effector_counts: [0; PATCH_SIZE as usize],
+            effectors: [0xFFu8; 6 * PATCH_SIZE as usize],
         };
         for i in 0..6 {
-            result.neighbors[i] = 0;
+            result.effectors[i] = 0;
         }
         result
     }
 }
 
-impl Neighbors for AtMostSixNeighbors {
-    fn neighbors<'a>(&'a self, index: u8) -> NeighborIterator<'a> {
-        NeighborIterator {
-            neighbors: &self.neighbors,
+impl Effectors for AtMostSixEffectors {
+    fn iter<'a>(&'a self, index: u8) -> EffectorIterator<'a> {
+        EffectorIterator {
+            effectors: &self.effectors,
             pos: 6 * index as usize,
             to_go: 6,
         }
     }
 
-    fn add(&mut self, index: u8, neighbor_index: u8) -> Result<u8> {
+    fn add(&mut self, index: u8, effector_index: u8) -> Result<u8> {
         let i = index as usize;
-        let n = self.neighbor_counts[i] as usize;
+        let n = self.effector_counts[i] as usize;
         let base = 6 * i;
         for k in base..(base + n) {
-            if self.neighbors[k] == neighbor_index {
-                return Ok(self.neighbor_counts[i]);
+            if self.effectors[k] == effector_index {
+                return Ok(self.effector_counts[i]);
             }
         }
         if n >= 6 {
-            return Err(anyhow!("Cannot add more than 6 neighbors"));
+            return Err(anyhow!("Cannot add more than 6 effectors"));
         }
-        self.neighbors[6 * i + n] = neighbor_index;
-        self.neighbor_counts[i] += 1;
-        Ok(self.neighbor_counts[i])
+        self.effectors[6 * i + n] = effector_index;
+        self.effector_counts[i] += 1;
+        Ok(self.effector_counts[i])
     }
 }

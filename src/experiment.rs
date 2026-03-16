@@ -36,10 +36,10 @@ impl State<usize> for Rotate {
         trace!("This state: [{this_state:?}]");
         let mut count = 0;
         let mut angle = 0f64;
-        for neighbor in location.neighbors()? {
+        for effector in location.effectors()? {
             count += 1;
-            trace!("Neighbor: [{}]", neighbor.id());
-            if let Some(state) = region.state(&neighbor, generation) as Option<Self> {
+            trace!("Effector: [{}]", effector.id());
+            if let Some(state) = region.state(&effector, generation) as Option<Self> {
                 angle += normalize(state.angle) + 2.0 * PI;
             }
         }

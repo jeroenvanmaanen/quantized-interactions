@@ -19,7 +19,7 @@ pub struct Wave {
     amplitude: f64,
     velocity: f64,
     is_center: bool,
-    neighbor_count: Option<u8>,
+    effector_count: Option<u8>,
 }
 
 impl Wave {
@@ -28,7 +28,7 @@ impl Wave {
             amplitude,
             velocity: 0.0,
             is_center,
-            neighbor_count: None,
+            effector_count: None,
         }
     }
 }
@@ -42,7 +42,7 @@ impl State<usize> for Wave {
         trace!("Update: [{}]", location.id());
         let this_state: Self = region.state(location, generation).unwrap_or_default();
         trace!("This state: [{this_state:?}]");
-        let neighbors = location.neighbors()?;
+        let effectors = location.effectors()?;
         let mut next_amplitude = this_state.amplitude;
         let mut next_velocity = this_state.velocity;
         next_amplitude += next_velocity;
@@ -52,14 +52,14 @@ impl State<usize> for Wave {
             let angle = (*generation as f64) / 40.0;
             next_amplitude = angle.sin() * 30.0;
             next_velocity = angle.cos();
-            for _ in neighbors {
+            for _ in effectors {
                 count += 1;
             }
-        } else if let Some(this_c) = this_state.neighbor_count {
-            for neighbor in neighbors {
-                trace!("Neighbor: [{}]", neighbor.id());
-                if let Some(other_state) = region.state(&neighbor, generation) as Option<Wave> {
-                    if let Some(c) = other_state.neighbor_count {
+        } else if let Some(this_c) = this_state.effector_count {
+            for effector in effectors {
+                trace!("Effector: [{}]", effector.id());
+                if let Some(other_state) = region.state(&effector, generation) as Option<Wave> {
+                    if let Some(c) = other_state.effector_count {
                         let max_c = cmp::max(this_c, c);
                         let delta =
                             (other_state.amplitude - this_state.amplitude) * 0.005 / (max_c as f64);
@@ -71,12 +71,12 @@ impl State<usize> for Wave {
                 }
             }
         } else {
-            for _ in neighbors {
+            for _ in effectors {
                 count += 1;
             }
         }
         trace!(
-            "Neighbor count: {}: {} (err: {})",
+            "Effector count: {}: {} (err: {})",
             location.id(),
             count,
             err
@@ -86,7 +86,7 @@ impl State<usize> for Wave {
             amplitude: next_amplitude,
             velocity: next_velocity,
             is_center: this_state.is_center,
-            neighbor_count: new_count,
+            effector_count: new_count,
         };
         Ok(result)
     }
@@ -212,8 +212,8 @@ fn local_maximum<Reg: Region<Wave, usize>>(
         if amplitude <= 0.0 {
             return Ok(None);
         }
-        for neighbor in location.neighbors()? {
-            if let Some(other_state) = region.state(&neighbor, generation) as Option<Wave> {
+        for effector in location.effectors()? {
+            if let Some(other_state) = region.state(&effector, generation) as Option<Wave> {
                 if other_state.amplitude.abs() > amplitude {
                     return Ok(None);
                 }

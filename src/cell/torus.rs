@@ -208,11 +208,11 @@ fn connect_orthogonally<S: State<Gen>, Gen: Generation>(torus: &CellTorus<S, Gen
                 other[k] = (co_ordinates[k] + d) % torus.dimensions[k];
                 let other_index = get_index(&other, &torus.dimensions)?;
                 trace!(
-                    "Join neighbors: ({:?}) <=> ({:?}) ~ {} <=> {}",
+                    "Join effectors: ({:?}) <=> ({:?}) ~ {} <=> {}",
                     &co_ordinates, &other, i, other_index
                 );
-                let neighbor = &cells[other_index];
-                center.join(neighbor)?;
+                let effector = &cells[other_index];
+                center.join(effector)?;
             }
         }
         next_co_ordinates(&mut co_ordinates, &torus.dimensions);

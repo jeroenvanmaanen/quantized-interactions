@@ -33,9 +33,9 @@ impl State<usize> for Conway {
             .unwrap_or(false);
         trace!("This state: [{this_state:?}]");
         let mut count = 0;
-        for neighbor in location.neighbors()? {
-            trace!("Neighbor: [{}]", neighbor.id());
-            if let Some(state) = region.state(&neighbor, generation) as Option<Self> {
+        for effector in location.effectors()? {
+            trace!("Effector: [{}]", effector.id());
+            if let Some(state) = region.state(&effector, generation) as Option<Self> {
                 if state.alive {
                     count += 1;
                 }

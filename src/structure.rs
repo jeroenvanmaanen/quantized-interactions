@@ -32,7 +32,7 @@ pub trait Space<S: State<Gen>, Gen: Generation> {
     }
 }
 pub trait Location<S: State<Gen>, Gen: Generation>: Sized {
-    fn neighbors(&self) -> Result<impl IntoIterator<Item = Self>>;
+    fn effectors(&self) -> Result<impl IntoIterator<Item = Self>>;
     fn id(&self) -> String;
 }
 pub trait State<Gen: Generation>: Debug + Clone + Display {

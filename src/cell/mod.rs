@@ -54,10 +54,10 @@ impl<S: State<Gen>, Gen: Generation> PartialEq for Cell<S, Gen> {
 impl<S: State<Gen>, Gen: Generation> Eq for Cell<S, Gen> {}
 
 impl<S: State<Gen>, Gen: Generation> Location<S, Gen> for Cell<S, Gen> {
-    fn neighbors(&self) -> Result<impl IntoIterator<Item = Self>> {
-        self.0.neighbors.read().map(|s| s.clone()).map_err(|e| {
+    fn effectors(&self) -> Result<impl IntoIterator<Item = Self>> {
+        self.0.effectors.read().map(|s| s.clone()).map_err(|e| {
             anyhow!(
-                "Could not get read lock for neighbors of: {:?}: {:?}",
+                "Could not get read lock for effectors of: {:?}: {:?}",
                 self.0.id,
                 e
             )
@@ -113,12 +113,12 @@ where
     S: State<Gen>,
     Gen: Generation,
 {
-    let mut neighbors_lock = this
+    let mut effectors_lock = this
         .0
-        .neighbors
+        .effectors
         .write()
         .map_err(|e| anyhow!("Could not get write lock: {e}"))?;
-    neighbors_lock.insert(that.clone());
+    effectors_lock.insert(that.clone());
     trace!("Connected {} => {}", this.id(), that.id());
     Ok(())
 }
@@ -126,7 +126,7 @@ where
 struct InnerCell<S: State<Gen>, Gen: Generation> {
     id: Uuid,
     state_map: RwLock<HashMap<Gen, S>>,
-    neighbors: RwLock<HashSet<Cell<S, Gen>>>,
+    effectors: RwLock<HashSet<Cell<S, Gen>>>,
 }
 
 impl<S: State<Gen>, Gen: Generation> InnerCell<S, Gen> {
@@ -135,11 +135,11 @@ impl<S: State<Gen>, Gen: Generation> InnerCell<S, Gen> {
         let mut state_map = HashMap::new();
         state_map.insert(generation, state);
         let state_map = RwLock::new(state_map);
-        let neighbors = RwLock::new(HashSet::new());
+        let effectors = RwLock::new(HashSet::new());
         InnerCell {
             id,
             state_map,
-            neighbors,
+            effectors,
         }
     }
 
@@ -150,8 +150,8 @@ impl<S: State<Gen>, Gen: Generation> InnerCell<S, Gen> {
 
 impl<S: State<Gen>, Gen: Generation> Debug for InnerCell<S, Gen> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let neighbors = &self
-            .neighbors
+        let effectors = &self
+            .effectors
             .read()
             .ok()
             .map(|n| {
@@ -163,7 +163,7 @@ impl<S: State<Gen>, Gen: Generation> Debug for InnerCell<S, Gen> {
         f.debug_struct("InnerCell")
             .field("id", &self.id)
             .field("state_map", &self.state_map.read().ok())
-            .field("neighbors", neighbors)
+            .field("effectors", effectors)
             .finish()
     }
 }
