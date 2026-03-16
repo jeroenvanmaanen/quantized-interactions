@@ -14,22 +14,24 @@ const INTERNAL: u8 = 0xD * 0xD;
 
 pub struct Inflexible<S: State<Gen> + Copy, Gen: Generation, N: Neighbors> {
     adjacent: Vec<HashMap<u8, usize>>,
-    generations: HashMap<Gen, Vec<Patch<S, Gen, N>>>,
+    neighbors: N,
+    generations: HashMap<Gen, Vec<Patch<S, Gen>>>,
 }
 
 impl<S: State<Gen> + Copy, Gen: Generation, N: Neighbors + Clone> Inflexible<S, Gen, N> {
-    pub fn new(neighbors: &N, capacity: usize, generation: &Gen, init: S) -> Self {
+    pub fn new(neighbors: N, capacity: usize, generation: &Gen, init: S) -> Self {
         let patch_count = capacity / (INTERNAL as usize);
         let mut patches = Vec::new();
         let mut adjacent = Vec::new();
         for _ in 0..patch_count {
-            patches.push(Patch::new_init(neighbors.clone(), init));
+            patches.push(Patch::new_init(init));
             adjacent.push(HashMap::new());
         }
         let mut generations = HashMap::new();
         generations.insert(generation.clone(), patches);
         Inflexible {
             adjacent,
+            neighbors,
             generations,
         }
     }
@@ -70,33 +72,30 @@ fn next_adjacent(map: &HashMap<u8, usize>) -> Result<u8> {
     }
 }
 
-pub struct Patch<S: State<Gen> + Copy, Gen: Generation, N: Neighbors> {
+pub struct Patch<S: State<Gen> + Copy, Gen: Generation> {
     cells: [S; PATCH_SIZE as usize],
     cell_patch: [u8; PATCH_SIZE as usize],
-    neighbors: N,
     size: u8,
     _phantom: PhantomData<Gen>,
 }
 
-impl<S, Gen, N> Patch<S, Gen, N>
+impl<S, Gen> Patch<S, Gen>
 where
     S: State<Gen> + Copy,
     Gen: Generation,
-    N: Neighbors,
 {
-    pub fn new_init(neighbors: N, init: S) -> Self {
+    pub fn new_init(init: S) -> Self {
         Patch {
             cells: [init; PATCH_SIZE as usize],
             cell_patch: [0xFF; PATCH_SIZE as usize],
-            neighbors,
             size: 0,
             _phantom: PhantomData,
         }
     }
 }
 
-pub struct Location<S: State<Gen> + Copy, Gen: Generation, N: Neighbors> {
-    patch: Rc<Patch<S, Gen, N>>,
+pub struct Location<S: State<Gen> + Copy, Gen: Generation> {
+    patch: Rc<Patch<S, Gen>>,
     index: u8,
     _phantom: PhantomData<Gen>,
 }

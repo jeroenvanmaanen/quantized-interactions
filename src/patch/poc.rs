@@ -52,11 +52,11 @@ impl State<usize> for Trivial {
 pub fn example() -> Result<()> {
     info!("Patch PoC");
     let neighbors = AtMostSixNeighbors::default();
-    let _patch = Patch::new_init(neighbors.clone(), Trivial::default());
+    let _patch = Patch::new_init(Trivial::default());
     let circumference = 30;
     let capacity = circumference * circumference;
     let generation = 0usize;
-    let _inflexible = Inflexible::new(&neighbors, capacity, &generation, Trivial::default());
+    let _inflexible = Inflexible::new(neighbors, capacity, &generation, Trivial::default());
 
     Ok(())
 }
