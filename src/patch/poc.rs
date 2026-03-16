@@ -1,7 +1,7 @@
 use std::{collections::HashSet, fmt::Display};
 
 use crate::{
-    patch::{AtMostSixEffectors, Inflexible, Patch},
+    patch::{AtMostSixEffectors, Crystal, Patch},
     structure::{Location, Region, State},
 };
 
@@ -56,7 +56,7 @@ pub fn example() -> Result<()> {
     let circumference = 30;
     let capacity = circumference * circumference;
     let generation = 0usize;
-    let _inflexible = Inflexible::new(effectors, capacity, &generation, Trivial::default());
+    let _crystal = Crystal::new(effectors, capacity, &generation, Trivial::default());
 
     Ok(())
 }

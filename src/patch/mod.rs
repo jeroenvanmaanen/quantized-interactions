@@ -3,14 +3,15 @@
 //! A patch is a collection of nearby cells. The idea is that the interior of a patch is substantially larger than its edges.
 //! Each cell is affected by a number of effectors, *i.e.*, its current state is completely determined by its state in the previous generation and the state of its effectors in the previous generation.
 //!
-//! The structure of connections between effectors and affected cells can be more ore less flexible.
-//! One possibility is that all patheches have the same structure, so there is a single `Effectors` struct for the entire space. This is modeled in stract `Inflexible`.
+//! The structure of connections between effectors and affected cells can be more or less flexible.
+//! One possibility is that all patches have the same structure, so there is a single `Effectors` struct for the entire space. This is modeled in struct `Crystal`.
 //! On the other end of the spectrum each patch could have its own `Effectors` struct. This is not implemented yet.
 //!
 //! The effectors of a cell with index *i* in patch *p<sub>a</sub>* can be found by calling `iter` on the `Effectors` instance that governs patch *p<sub>a</sub>*.
-//! Each invocation of `next` on the resulting iterator yields an index *e* that can be used to determine in which patch the effector can be found.
+//! Each invocation of `next` on the resulting iterator yields an index *e* that can be used to find the state of the effector.
 //! The global index of the patch that contains the effector *p<sub>e</sub>* can be looked up in the `cell_patches` array in patch *p<sub>a</sub>*.
-//! The state of the effector in *p<sub>e</sub>* can be looked up in the `cell_index` array in patch *p<sub>a</sub>*.
+//! If cell_patches[e] equals -1, then the effector belongs to the interior of the same patch: *p<sub>e</sub>* equals *p<sub>a</sub>*; otherwise this effector belongs to the edge of this patch and to the interior of another patch.
+//! The state of an effector on the edge can be looked up in the `cells` array in *p<sub>e</sub>* using the index found in the `cell_index` array in patch *p<sub>a</sub>*.
 
 #![allow(dead_code)]
 
@@ -26,13 +27,13 @@ use crate::structure::{Generation, State};
 const PATCH_SIZE: u8 = 0xFF;
 const INTERNAL: u8 = 0xD * 0xD;
 
-pub struct Inflexible<S: State<Gen> + Copy, Gen: Generation, E: Effectors> {
+pub struct Crystal<S: State<Gen> + Copy, Gen: Generation, E: Effectors> {
     adjacent: Vec<HashMap<u8, usize>>,
     effectors: E,
     generations: HashMap<Gen, Vec<Patch<S, Gen>>>,
 }
 
-impl<S: State<Gen> + Copy, Gen: Generation, E: Effectors + Clone> Inflexible<S, Gen, E> {
+impl<S: State<Gen> + Copy, Gen: Generation, E: Effectors + Clone> Crystal<S, Gen, E> {
     pub fn new(effectors: E, capacity: usize, generation: &Gen, init: S) -> Self {
         let patch_count = capacity / (INTERNAL as usize);
         let mut patches = Vec::new();
@@ -43,7 +44,7 @@ impl<S: State<Gen> + Copy, Gen: Generation, E: Effectors + Clone> Inflexible<S, 
         }
         let mut generations = HashMap::new();
         generations.insert(generation.clone(), patches);
-        Inflexible {
+        Crystal {
             adjacent,
             effectors,
             generations,
