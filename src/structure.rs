@@ -8,7 +8,7 @@ pub trait Generation: Hash + Eq + PartialEq + Debug + Clone {
     fn successor(&self) -> Self;
 }
 pub trait Region<S: State<Gen>, Gen: Generation> {
-    type Loc: Location<S, Gen>;
+    type Loc: Location<Gen>;
 
     fn locations(&self) -> impl IntoIterator<Item = Self::Loc>;
     fn state(&self, location: &Self::Loc, generation: &Gen) -> Option<S>;
@@ -31,10 +31,12 @@ pub trait Space<S: State<Gen>, Gen: Generation> {
         accumulator
     }
 }
-pub trait Location<S: State<Gen>, Gen: Generation>: Sized {
+
+pub trait Location<Gen: Generation>: Sized {
     fn effectors(&self) -> Result<impl IntoIterator<Item = Self>>;
     fn id(&self) -> String;
 }
+
 pub trait State<Gen: Generation>: Debug + Clone + Display {
     fn update<Reg: Region<Self, Gen>>(
         region: &Reg,
@@ -42,6 +44,7 @@ pub trait State<Gen: Generation>: Debug + Clone + Display {
         generation: &Gen,
     ) -> Result<Self>;
 }
+
 pub trait GrayScale {
     type Context;
     fn gray_value(&self, context: &Self::Context) -> u8;

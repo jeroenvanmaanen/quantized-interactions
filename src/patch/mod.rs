@@ -20,7 +20,7 @@ mod poc;
 pub use poc::example as poc_example;
 
 use anyhow::{Result, anyhow};
-use std::{collections::HashMap, marker::PhantomData, rc::Rc};
+use std::{collections::HashMap, marker::PhantomData};
 
 use crate::structure::{Generation, State};
 
@@ -111,8 +111,8 @@ where
     }
 }
 
-pub struct Location<S: State<Gen> + Copy, Gen: Generation> {
-    patch: Rc<Patch<S, Gen>>,
+pub struct LocationInCrystal<Gen: Generation> {
+    patch: usize,
     index: u8,
     _phantom: PhantomData<Gen>,
 }

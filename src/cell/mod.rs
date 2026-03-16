@@ -53,7 +53,7 @@ impl<S: State<Gen>, Gen: Generation> PartialEq for Cell<S, Gen> {
 }
 impl<S: State<Gen>, Gen: Generation> Eq for Cell<S, Gen> {}
 
-impl<S: State<Gen>, Gen: Generation> Location<S, Gen> for Cell<S, Gen> {
+impl<S: State<Gen>, Gen: Generation> Location<Gen> for Cell<S, Gen> {
     fn effectors(&self) -> Result<impl IntoIterator<Item = Self>> {
         self.0.effectors.read().map(|s| s.clone()).map_err(|e| {
             anyhow!(

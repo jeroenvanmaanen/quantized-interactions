@@ -17,7 +17,7 @@ impl Display for Trivial {
     }
 }
 
-impl Location<Trivial, usize> for u8 {
+impl Location<usize> for u8 {
     fn effectors(&self) -> Result<impl IntoIterator<Item = Self>> {
         Ok(HashSet::new())
     }
