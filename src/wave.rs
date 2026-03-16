@@ -57,7 +57,7 @@ impl State<usize> for Wave {
             }
         } else if let Some(this_c) = this_state.neighbor_count {
             for neighbor in neighbors {
-                trace!("Neigbor: [{}]", neighbor.id());
+                trace!("Neighbor: [{}]", neighbor.id());
                 if let Some(other_state) = region.state(&neighbor, generation) as Option<Wave> {
                     if let Some(c) = other_state.neighbor_count {
                         let max_c = cmp::max(this_c, c);

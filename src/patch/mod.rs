@@ -12,12 +12,12 @@ use crate::structure::{Generation, State};
 const PATCH_SIZE: u8 = 0xFF;
 const INTERNAL: u8 = 0xD * 0xD;
 
-pub struct Inflexible<S: State<Gen> + Copy, Gen: Generation, N: Neigbors> {
+pub struct Inflexible<S: State<Gen> + Copy, Gen: Generation, N: Neighbors> {
     adjacent: Vec<HashMap<u8, usize>>,
     generations: HashMap<Gen, Vec<Patch<S, Gen, N>>>,
 }
 
-impl<S: State<Gen> + Copy, Gen: Generation, N: Neigbors + Clone> Inflexible<S, Gen, N> {
+impl<S: State<Gen> + Copy, Gen: Generation, N: Neighbors + Clone> Inflexible<S, Gen, N> {
     pub fn new(neighbors: &N, capacity: usize, generation: &Gen, init: S) -> Self {
         let patch_count = capacity / (INTERNAL as usize);
         let mut patches = Vec::new();
@@ -70,7 +70,7 @@ fn next_adjacent(map: &HashMap<u8, usize>) -> Result<u8> {
     }
 }
 
-pub struct Patch<S: State<Gen> + Copy, Gen: Generation, N: Neigbors> {
+pub struct Patch<S: State<Gen> + Copy, Gen: Generation, N: Neighbors> {
     cells: [S; PATCH_SIZE as usize],
     cell_patch: [u8; PATCH_SIZE as usize],
     neighbors: N,
@@ -82,7 +82,7 @@ impl<S, Gen, N> Patch<S, Gen, N>
 where
     S: State<Gen> + Copy,
     Gen: Generation,
-    N: Neigbors,
+    N: Neighbors,
 {
     pub fn new_init(neighbors: N, init: S) -> Self {
         Patch {
@@ -95,14 +95,14 @@ where
     }
 }
 
-pub struct Location<S: State<Gen> + Copy, Gen: Generation, N: Neigbors> {
+pub struct Location<S: State<Gen> + Copy, Gen: Generation, N: Neighbors> {
     patch: Rc<Patch<S, Gen, N>>,
     index: u8,
     _phantom: PhantomData<Gen>,
 }
 
 pub struct NeighborIterator<'a> {
-    neigbors: &'a [u8],
+    neighbors: &'a [u8],
     pos: usize,
     to_go: u8,
 }
@@ -111,18 +111,18 @@ impl<'a> Iterator for NeighborIterator<'a> {
     type Item = u8;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.to_go < 1 || self.neigbors[self.pos] == 0xFF {
+        if self.to_go < 1 || self.neighbors[self.pos] == 0xFF {
             None
         } else {
             let pos = self.pos;
             self.pos += 1;
             self.to_go -= 1;
-            Some(self.neigbors[pos])
+            Some(self.neighbors[pos])
         }
     }
 }
 
-pub trait Neigbors: Default {
+pub trait Neighbors: Default {
     fn neighbors<'a>(&'a self, index: u8) -> NeighborIterator<'a>;
     fn add(&mut self, index: u8, neighbor_index: u8) -> Result<u8>;
 }
@@ -146,10 +146,10 @@ impl Default for AtMostSixNeighbors {
     }
 }
 
-impl Neigbors for AtMostSixNeighbors {
+impl Neighbors for AtMostSixNeighbors {
     fn neighbors<'a>(&'a self, index: u8) -> NeighborIterator<'a> {
         NeighborIterator {
-            neigbors: &self.neighbors,
+            neighbors: &self.neighbors,
             pos: 6 * index as usize,
             to_go: 6,
         }

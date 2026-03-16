@@ -34,7 +34,7 @@ impl State<usize> for Conway {
         trace!("This state: [{this_state:?}]");
         let mut count = 0;
         for neighbor in location.neighbors()? {
-            trace!("Neigbor: [{}]", neighbor.id());
+            trace!("Neighbor: [{}]", neighbor.id());
             if let Some(state) = region.state(&neighbor, generation) as Option<Self> {
                 if state.alive {
                     count += 1;

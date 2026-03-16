@@ -38,8 +38,11 @@ enum Commands {
         debug: bool,
     },
 
-    #[command(about = "proof-of-concept for patches of cells")]
-    PatchPoC,
+    #[command(name = "patch-poc", about = "proof-of-concept for patches of cells")]
+    PatchPoC {
+        #[arg(help = "directory to export image-files", long)]
+        export_dir: Option<PathBuf>,
+    },
 }
 
 pub fn main() -> Result<()> {
@@ -60,7 +63,7 @@ pub fn main() -> Result<()> {
         }
         Some(Commands::Conway) => conway::example()?,
         Some(Commands::Experiment) => experiment::example()?,
-        Some(Commands::PatchPoC) => patch::poc_example()?,
+        Some(Commands::PatchPoC { .. }) => patch::poc_example()?,
         None => help()?,
     }
 

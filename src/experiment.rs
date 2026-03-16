@@ -38,7 +38,7 @@ impl State<usize> for Rotate {
         let mut angle = 0f64;
         for neighbor in location.neighbors()? {
             count += 1;
-            trace!("Neigbor: [{}]", neighbor.id());
+            trace!("Neighbor: [{}]", neighbor.id());
             if let Some(state) = region.state(&neighbor, generation) as Option<Self> {
                 angle += normalize(state.angle) + 2.0 * PI;
             }
