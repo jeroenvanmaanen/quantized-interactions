@@ -1,7 +1,7 @@
 use std::{collections::HashSet, fmt::Display};
 
 use crate::{
-    patch::{AtMostSixEffectors, Crystal, Patch},
+    patch::new_hexagonal,
     structure::{Location, Region, State},
 };
 
@@ -51,12 +51,7 @@ impl State<usize> for Trivial {
 
 pub fn example() -> Result<()> {
     info!("Patch PoC");
-    let effectors = AtMostSixEffectors::default();
-    let _patch = Patch::new_init(Trivial::default());
-    let circumference = 30;
-    let capacity = circumference * circumference;
-    let generation = 0usize;
-    let _crystal = Crystal::new(effectors, capacity, &generation, Trivial::default());
+    let _crystal = new_hexagonal(Trivial::default(), 0usize, 30, 30);
 
     Ok(())
 }

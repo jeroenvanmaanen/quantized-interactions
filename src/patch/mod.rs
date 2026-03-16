@@ -16,8 +16,10 @@
 #![allow(dead_code)]
 
 mod poc;
+mod torus;
 
 pub use poc::example as poc_example;
+pub use torus::new_hexagonal;
 
 use anyhow::{Result, anyhow};
 use std::{collections::HashMap, marker::PhantomData};
@@ -34,8 +36,7 @@ pub struct Crystal<S: State<Gen> + Copy, Gen: Generation, E: Effectors> {
 }
 
 impl<S: State<Gen> + Copy, Gen: Generation, E: Effectors + Clone> Crystal<S, Gen, E> {
-    pub fn new(effectors: E, capacity: usize, generation: &Gen, init: S) -> Self {
-        let patch_count = capacity / (INTERNAL as usize);
+    pub fn new(effectors: E, patch_count: usize, generation: &Gen, init: S) -> Self {
         let mut patches = Vec::new();
         let mut adjacent = Vec::new();
         for _ in 0..patch_count {
