@@ -35,7 +35,7 @@ pub struct Crystal<S: State<Gen> + Copy, Gen: Generation, E: Effectors> {
     generations: HashMap<Gen, Vec<Patch<S, Gen>>>,
 }
 
-impl<S: State<Gen> + Copy, Gen: Generation, E: Effectors + Clone> Crystal<S, Gen, E> {
+impl<S: State<Gen> + Copy, Gen: Generation, E: Effectors> Crystal<S, Gen, E> {
     pub fn new(effectors: E, patch_count: usize, generation: &Gen, init: S) -> Self {
         let mut patches = Vec::new();
         let mut adjacent = Vec::new();

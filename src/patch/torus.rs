@@ -31,7 +31,7 @@ pub fn new_hexagonal<S: State<Gen> + Copy, Gen: Generation>(
     let effectors = AtMostSixEffectors::default();
     let (w, h) = calculate_grid(width, height);
     let crystal = Crystal::new(effectors, w * h, &initial_gen, init);
-    // TODO: connect effectors of all cells
+    connect_cells(&crystal, width, w, height, h);
     Ok(PatchTorus {
         crystal,
         dimensions,
@@ -95,4 +95,21 @@ fn calculate_footprint(long: usize, short: usize, s: usize) -> (usize, usize, us
         footprint.1, footprint.2
     );
     footprint
+}
+
+fn connect_cells<S, Gen, E>(
+    crystal: &Crystal<S, Gen, E>,
+    width: usize,
+    w: usize,
+    height: usize,
+    h: usize,
+) where
+    S: State<Gen> + Copy,
+    Gen: Generation,
+    E: Effectors,
+{
+    debug!(
+        "Connect cells: [{}]: ([{width}] / [{w}]) x ([{height}] / [{h}])",
+        crystal.patch_count()
+    );
 }
