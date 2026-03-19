@@ -112,4 +112,15 @@ fn connect_cells<S, Gen, E>(
         "Connect cells: [{}]: ([{width}] / [{w}]) x ([{height}] / [{h}])",
         crystal.patch_count()
     );
+    let wp = width / w; // With of a small patch
+    let wq = width - w * wp; // Number of collums that are one cell wider
+    let hp = height / h; // Height of a small patch
+    let hq = height - h * hp; // Number of rows that are one cell taller
+    for r in 0..h {
+        let hr = hp + (if r < hq { 1 } else { 0 }); // Height of this row
+        for c in 0..w {
+            let wc = wp + (if c < wq { 1 } else { 0 }); // Width of this column
+            debug!("Patch: [{r}]: [{c}]: ([{wc}] x [{hr}])");
+        }
+    }
 }
