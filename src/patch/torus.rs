@@ -1,3 +1,5 @@
+use std::rc::Rc;
+
 use anyhow::{Result, anyhow};
 use log::debug;
 
@@ -28,10 +30,10 @@ pub fn new_hexagonal<S: State<Gen> + Copy, Gen: Generation>(
         return Err(anyhow!("Must both be even: ({width}, {height})"));
     }
     let dimensions = vec![width, height];
-    let effectors = AtMostSixEffectors::default();
+    let effector_factory = || AtMostSixEffectors::default();
     let (w, h) = calculate_grid(width, height);
-    let crystal = Crystal::new(effectors, w * h, &initial_gen, init);
-    connect_cells(&crystal, width, w, height, h);
+    let mut crystal = Crystal::new(w * h, &initial_gen, init, effector_factory);
+    connect_cells(&mut crystal, width, w, height, h)?;
     Ok(PatchTorus {
         crystal,
         dimensions,
@@ -72,10 +74,10 @@ fn calculate_oblong(long: usize, short: usize) -> (usize, usize) {
 }
 
 fn calculate_footprint(long: usize, short: usize, s: usize) -> (usize, usize, usize) {
-    let sd = if s > 1 { 1 } else { 0 };
+    let sd = if s > 1 { 2 } else { 0 };
     let sx = sd + (short + s - 1) / s;
     let lx = (PATCH_SIZE as usize) / sx;
-    let ld = if lx < long { 1 } else { 0 };
+    let ld = if lx < long { 2 } else { 0 };
     let l = (long + lx - ld - 1) / (lx - ld);
     let mut edge = 0;
     if s > 1 {
@@ -98,12 +100,13 @@ fn calculate_footprint(long: usize, short: usize, s: usize) -> (usize, usize, us
 }
 
 fn connect_cells<S, Gen, E>(
-    crystal: &Crystal<S, Gen, E>,
+    crystal: &mut Crystal<S, Gen, E>,
     width: usize,
     w: usize,
     height: usize,
     h: usize,
-) where
+) -> Result<()>
+where
     S: State<Gen> + Copy,
     Gen: Generation,
     E: Effectors,
@@ -112,15 +115,99 @@ fn connect_cells<S, Gen, E>(
         "Connect cells: [{}]: ([{width}] / [{w}]) x ([{height}] / [{h}])",
         crystal.patch_count()
     );
+
+    let even_offset_coords = vec![(0, -1), (1, -1), (-1, 0), (1, 0), (0, 1), (1, 1)];
+    let odd_offset_coords = vec![(-1, -1), (0, -1), (-1, 0), (1, 0), (-1, 1), (0, 1)];
+    let even_offsets = Alternatives::new(even_offset_coords, odd_offset_coords);
+
     let wp = width / w; // With of a small patch
-    let wq = width - w * wp; // Number of collums that are one cell wider
+    let wq = width - w * (wp as usize); // Number of collums that are one cell wider
+    let wp = wp as u8;
+    let w_wrap = w <= 1;
     let hp = height / h; // Height of a small patch
     let hq = height - h * hp; // Number of rows that are one cell taller
+    let hp = hp as u8;
+    let h_wrap = h <= 1;
+    let mut cell_rows_before = 0;
+    let mut br = 0;
     for r in 0..h {
         let hr = hp + (if r < hq { 1 } else { 0 }); // Height of this row
+        let mut cell_colums_before = 0;
         for c in 0..w {
             let wc = wp + (if c < wq { 1 } else { 0 }); // Width of this column
-            debug!("Patch: [{r}]: [{c}]: ([{wc}] x [{hr}])");
+            let even = (cell_rows_before ^ cell_colums_before) & 0x01 == 0; // TODO: is this correct?
+            let p = br + c;
+            debug!(
+                "Patch: #{p}: [{r}]: [{c}]: ([{wc}] x [{hr}]): [{cell_colums_before}, {cell_rows_before}, {even}]"
+            );
+            let effectors = &mut crystal.effectors[p];
+            let mut offsets = even_offsets.clone();
+            if !even {
+                offsets = offsets.other();
+            }
+            let mut iy = wc;
+            for _ in 1..(hr - 1) {
+                for x in 1..(wc - 1) {
+                    let i = iy + x;
+                    for (ox, oy) in offsets.offsets() {
+                        let j = i + (oy * wc) - wc + ox - 1;
+                        effectors.add(i, j)?;
+                    }
+                }
+                offsets = offsets.other();
+                iy += wc;
+            }
+            if w_wrap {
+                debug!("Wrap left to right");
+            }
+            if h_wrap {
+                debug!("Wrap top to bottom");
+            }
+            cell_colums_before += wc;
+        }
+        cell_rows_before += hr;
+        br += w;
+    }
+    Ok(())
+}
+
+struct Offsets {
+    even: Vec<(u8, u8)>,
+    odd: Vec<(u8, u8)>,
+}
+
+#[derive(Clone)]
+enum Alternatives {
+    Even(Rc<Offsets>),
+    Odd(Rc<Offsets>),
+}
+
+impl Alternatives {
+    fn new(even_coords: Vec<(i8, i8)>, odd_coords: Vec<(i8, i8)>) -> Self {
+        let even = coords_to_u8(even_coords);
+        let odd = coords_to_u8(odd_coords);
+        Alternatives::Even(Rc::new(Offsets { even, odd }))
+    }
+
+    fn offsets(&self) -> &[(u8, u8)] {
+        match self {
+            Alternatives::Even(offsets) => &offsets.even,
+            Alternatives::Odd(offsets) => &offsets.odd,
         }
     }
+
+    fn other(self) -> Alternatives {
+        match self {
+            Alternatives::Even(offsets) => Alternatives::Odd(offsets),
+            Alternatives::Odd(offsets) => Alternatives::Even(offsets),
+        }
+    }
+}
+
+fn coords_to_u8(coords: Vec<(i8, i8)>) -> Vec<(u8, u8)> {
+    let mut result = Vec::new();
+    for (x, y) in coords {
+        result.push(((x + 1) as u8, (y + 1) as u8));
+    }
+    result
 }

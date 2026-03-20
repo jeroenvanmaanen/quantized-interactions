@@ -51,7 +51,7 @@ impl State<usize> for Trivial {
 
 pub fn example() -> Result<()> {
     info!("Patch PoC");
-    let _crystal = new_hexagonal(Trivial::default(), 0usize, 32, 30);
+    let _crystal = new_hexagonal(Trivial::default(), 0usize, 40, 30);
 
     Ok(())
 }

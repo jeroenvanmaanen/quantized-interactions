@@ -31,17 +31,24 @@ const INTERNAL: u8 = 0xD * 0xD;
 
 pub struct Crystal<S: State<Gen> + Copy, Gen: Generation, E: Effectors> {
     adjacent: Vec<HashMap<u8, usize>>,
-    effectors: E,
+    effectors: Vec<E>,
     generations: HashMap<Gen, Vec<Patch<S, Gen>>>,
 }
 
 impl<S: State<Gen> + Copy, Gen: Generation, E: Effectors> Crystal<S, Gen, E> {
-    pub fn new(effectors: E, patch_count: usize, generation: &Gen, init: S) -> Self {
+    pub fn new(
+        patch_count: usize,
+        generation: &Gen,
+        init: S,
+        effector_factory: impl Fn() -> E,
+    ) -> Self {
         let mut patches = Vec::new();
         let mut adjacent = Vec::new();
+        let mut effectors = Vec::new();
         for _ in 0..patch_count {
             patches.push(Patch::new_init(init));
             adjacent.push(HashMap::new());
+            effectors.push(effector_factory())
         }
         let mut generations = HashMap::new();
         generations.insert(generation.clone(), patches);
