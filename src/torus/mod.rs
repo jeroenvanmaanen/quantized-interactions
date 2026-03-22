@@ -21,17 +21,7 @@ pub enum Tiling {
 }
 
 pub trait Torus<S: State<Gen>, Gen: Generation>: Sized {
-    fn new<F>(
-        tiling: Tiling,
-        dimensions: &[usize],
-        initial_gen: Gen,
-        initial_state: F,
-    ) -> Result<Self>
-    where
-        F: Fn(&[usize]) -> S;
-
     fn update_all(&self, generation: &Gen) -> Result<()>;
-
     fn info(&self, generation: &Gen);
 }
 

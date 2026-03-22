@@ -19,7 +19,7 @@ mod poc;
 mod torus;
 
 pub use poc::example as poc_example;
-pub use torus::new_hexagonal;
+pub use torus::new_hexagonal_torus;
 
 use anyhow::{Result, anyhow};
 use std::{collections::HashMap, marker::PhantomData};

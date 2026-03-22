@@ -6,7 +6,7 @@ use log::debug;
 use crate::{
     patch::{AtMostSixEffectors, Effectors, PATCH_SIZE},
     structure::{Generation, State},
-    torus::Tiling,
+    torus::{Tiling, Torus},
 };
 
 use super::Crystal;
@@ -17,10 +17,20 @@ pub struct PatchTorus<S: State<Gen> + Copy, Gen: Generation, E: Effectors> {
     crystal: Crystal<S, Gen, E>,
 }
 
+impl<S: State<Gen> + Copy, Gen: Generation, E: Effectors> Torus<S, Gen> for PatchTorus<S, Gen, E> {
+    fn update_all(&self, _generation: &Gen) -> Result<()> {
+        todo!()
+    }
+
+    fn info(&self, _generation: &Gen) {
+        todo!()
+    }
+}
+
 const MAX_PATCH_SIZE: u8 = 14 * 18;
 const SQRT_PATCH_SIZE: u8 = 17;
 
-pub fn new_hexagonal<S: State<Gen> + Copy, Gen: Generation>(
+pub fn new_hexagonal_torus<S: State<Gen> + Copy, Gen: Generation>(
     init: S,
     initial_gen: Gen,
     width: usize,

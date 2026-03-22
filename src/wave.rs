@@ -1,5 +1,5 @@
 use crate::{
-    cell::CellTorus,
+    cell::new_cell_torus,
     structure::{Generation, GrayScale, Location, Region, Space, State},
     torus::{GrayScaleTorus, Tiling, Torus, get_index},
 };
@@ -122,7 +122,7 @@ pub fn example(size: usize, export_dir: Option<&PathBuf>) -> Result<()> {
     let width = size;
     let height = size;
     let mut generation = 0usize;
-    let torus = CellTorus::new(
+    let torus = new_cell_torus(
         Tiling::Hexagons,
         &[height, width],
         generation.clone(),
@@ -172,7 +172,7 @@ pub fn debug(size: usize) -> Result<()> {
     let height = size;
     let dimensions = [height, width];
     let generation = 0usize;
-    let torus = CellTorus::new(
+    let torus = new_cell_torus(
         Tiling::Hexagons,
         &dimensions,
         generation.clone(),

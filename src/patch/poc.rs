@@ -1,11 +1,11 @@
 use std::{collections::HashSet, fmt::Display};
 
 use crate::{
-    patch::new_hexagonal,
+    patch::new_hexagonal_torus,
     structure::{Location, Region, State},
 };
 
-use anyhow::Result;
+use anyhow::{Result, anyhow};
 use log::info;
 
 #[derive(Default, Debug, Clone, Copy)]
@@ -42,16 +42,21 @@ impl Region<Trivial, usize> for () {
 impl State<usize> for Trivial {
     fn update<Reg: Region<Self, usize>>(
         _region: &Reg,
-        _location: &<Reg as Region<Self, usize>>::Loc,
+        location: &<Reg as Region<Self, usize>>::Loc,
         _generation: &usize,
     ) -> Result<Self> {
+        let count = location.effectors().into_iter().count();
+        if count != 6 {
+            return Err(anyhow!("Wrong count: [{}]", count));
+        }
         Ok(Trivial)
     }
 }
 
 pub fn example() -> Result<()> {
     info!("Patch PoC");
-    let _crystal = new_hexagonal(Trivial::default(), 0usize, 40, 30);
+    let _crystal = new_hexagonal_torus(Trivial::default(), 0usize, 40, 30);
+    // TODO:    _crystal.update_all();
 
     Ok(())
 }

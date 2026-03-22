@@ -23,47 +23,47 @@ pub struct CellTorus<S: State<Gen>, Gen: Generation> {
     cells: Vec<Cell<S, Gen>>,
 }
 
-impl<S: State<Gen>, Gen: Generation> Torus<S, Gen> for CellTorus<S, Gen> {
-    fn new<F>(
-        tiling: Tiling,
-        dimensions: &[usize],
-        initial_gen: Gen,
-        initial_state: F,
-    ) -> Result<CellTorus<S, Gen>>
-    where
-        F: Fn(&[usize]) -> S,
-    {
-        let mut cardinality = 1usize;
-        for i in 0..dimensions.len() {
-            cardinality *= dimensions[i];
-        }
-        let mut cells = Vec::with_capacity(cardinality);
-        let mut co_ordinates = Vec::new();
-        create_cells(
-            &mut co_ordinates,
-            &dimensions,
-            &mut cells,
-            &initial_gen,
-            &initial_state,
-        );
-        debug!("Torus: Number of cells: [{}]", cells.len());
+pub fn new_cell_torus<S: State<Gen>, Gen: Generation, F>(
+    tiling: Tiling,
+    dimensions: &[usize],
+    initial_gen: Gen,
+    initial_state: F,
+) -> Result<CellTorus<S, Gen>>
+where
+    F: Fn(&[usize]) -> S,
+{
+    let mut cardinality = 1usize;
+    for i in 0..dimensions.len() {
+        cardinality *= dimensions[i];
+    }
+    let mut cells = Vec::with_capacity(cardinality);
+    let mut co_ordinates = Vec::new();
+    create_cells(
+        &mut co_ordinates,
+        &dimensions,
+        &mut cells,
+        &initial_gen,
+        &initial_state,
+    );
+    debug!("Torus: Number of cells: [{}]", cells.len());
 
-        let torus = CellTorus {
-            tiling,
-            dimensions: dimensions.into(),
-            cells,
-        };
+    let torus = CellTorus {
+        tiling,
+        dimensions: dimensions.into(),
+        cells,
+    };
 
-        match tiling {
-            Tiling::Orthogonal => connect_orthogonally(&torus)?,
-            Tiling::OrthogonalAndDiagonal => connect_orthogonally_and_diagonally(&torus)?,
-            Tiling::Hexagons => connect_hexagons(&torus)?,
-            _ => todo!(),
-        }
-
-        Ok(torus)
+    match tiling {
+        Tiling::Orthogonal => connect_orthogonally(&torus)?,
+        Tiling::OrthogonalAndDiagonal => connect_orthogonally_and_diagonally(&torus)?,
+        Tiling::Hexagons => connect_hexagons(&torus)?,
+        _ => todo!(),
     }
 
+    Ok(torus)
+}
+
+impl<S: State<Gen>, Gen: Generation> Torus<S, Gen> for CellTorus<S, Gen> {
     fn info(&self, generation: &Gen) {
         info!("Generation: {generation:?}");
         let mut lines = Vec::new();
