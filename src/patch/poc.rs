@@ -3,6 +3,7 @@ use std::{collections::HashSet, fmt::Display};
 use crate::{
     patch::new_hexagonal_torus,
     structure::{Location, Region, State},
+    torus::Torus,
 };
 
 use anyhow::{Result, anyhow};
@@ -17,7 +18,7 @@ impl Display for Trivial {
     }
 }
 
-impl Location<usize> for u8 {
+impl Location for u8 {
     fn effectors(&self) -> Result<impl IntoIterator<Item = Self>> {
         Ok(HashSet::new())
     }
@@ -55,8 +56,9 @@ impl State<usize> for Trivial {
 
 pub fn example() -> Result<()> {
     info!("Patch PoC");
-    let _crystal = new_hexagonal_torus(Trivial::default(), 0usize, 40, 30);
-    // TODO:    _crystal.update_all();
+    let crystal = new_hexagonal_torus(Trivial::default(), 0usize, 40, 30)?;
+    let generation = 0usize;
+    crystal.update_all(&generation)?;
 
     Ok(())
 }

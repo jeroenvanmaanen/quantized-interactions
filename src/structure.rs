@@ -8,7 +8,7 @@ pub trait Generation: Hash + Eq + PartialEq + Debug + Clone {
     fn successor(&self) -> Self;
 }
 pub trait Region<S: State<Gen>, Gen: Generation> {
-    type Loc: Location<Gen>;
+    type Loc: Location;
 
     fn locations(&self) -> impl IntoIterator<Item = Self::Loc>;
     fn state(&self, location: &Self::Loc, generation: &Gen) -> Option<S>;
@@ -32,7 +32,7 @@ pub trait Space<S: State<Gen>, Gen: Generation> {
     }
 }
 
-pub trait Location<Gen: Generation>: Sized {
+pub trait Location: Sized {
     fn effectors(&self) -> Result<impl IntoIterator<Item = Self>>;
     fn id(&self) -> String;
 }

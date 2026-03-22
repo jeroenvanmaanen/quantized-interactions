@@ -22,9 +22,9 @@ pub use poc::example as poc_example;
 pub use torus::new_hexagonal_torus;
 
 use anyhow::{Result, anyhow};
-use std::{collections::HashMap, marker::PhantomData};
+use std::{collections::HashMap, marker::PhantomData, ops::Range};
 
-use crate::structure::{Generation, State};
+use crate::structure::{Generation, Location, Region, State};
 
 const PATCH_SIZE: u8 = 0xFF;
 const INTERNAL: u8 = 0xD * 0xD;
@@ -119,10 +119,53 @@ where
     }
 }
 
-pub struct LocationInCrystal<Gen: Generation> {
-    patch: usize,
+impl<S: State<Gen> + Copy, Gen: Generation> Region<S, Gen> for Patch<S, Gen> {
+    type Loc = LocationInPatch;
+
+    fn locations(&self) -> impl IntoIterator<Item = Self::Loc> {
+        AllLocationsInPatchIterator {
+            inner: 0..self.size,
+        }
+    }
+
+    fn state(&self, location: &Self::Loc, _generation: &Gen) -> Option<S> {
+        let i = location.index;
+        if i < self.size {
+            Some(self.cells[location.index as usize])
+        } else {
+            None
+        }
+    }
+}
+
+pub struct LocationInPatch {
     index: u8,
-    _phantom: PhantomData<Gen>,
+}
+
+impl Location for LocationInPatch {
+    fn effectors<'a>(&'a self) -> Result<impl IntoIterator<Item = Self>> {
+        Ok([] as [LocationInPatch; 0])
+    }
+
+    fn id(&self) -> String {
+        todo!()
+    }
+}
+
+pub struct AllLocationsInPatchIterator {
+    inner: Range<u8>,
+}
+
+impl Iterator for AllLocationsInPatchIterator {
+    type Item = LocationInPatch;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if let Some(i) = self.inner.next() {
+            Some(LocationInPatch { index: i })
+        } else {
+            None
+        }
+    }
 }
 
 pub struct EffectorIterator<'a> {
