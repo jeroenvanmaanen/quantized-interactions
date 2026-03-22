@@ -18,6 +18,7 @@
 mod poc;
 mod torus;
 
+use log::debug;
 pub use poc::example as poc_example;
 pub use torus::new_hexagonal_torus;
 
@@ -73,6 +74,21 @@ impl<S: State<Gen> + Copy, Gen: Generation, E: Effectors> Crystal<S, Gen, E> {
         {
             let that_adjacent = &mut self.adjacent[that_index];
             that_adjacent.insert(next_adjacent(&that_adjacent)?, this_index);
+        }
+        Ok(())
+    }
+
+    fn update_all(&self, generation: &Gen) -> Result<()> {
+        // let next_generation = generation.successor();
+        let patches = &self.generations[generation];
+        debug!("Number of patches: [{generation:?}]: {}", patches.len());
+        for patch in patches {
+            debug!("Patch size: {}", patch.size);
+            for i in 0..patch.size {
+                let location = LocationInPatch { index: i };
+                let new_state = S::update(patch, &location, generation)?;
+                debug!("New state: {new_state:?}")
+            }
         }
         Ok(())
     }

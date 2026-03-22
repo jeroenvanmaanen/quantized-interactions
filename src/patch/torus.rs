@@ -4,7 +4,7 @@ use anyhow::{Result, anyhow};
 use log::debug;
 
 use crate::{
-    patch::{AtMostSixEffectors, Effectors, LocationInPatch, PATCH_SIZE},
+    patch::{AtMostSixEffectors, Effectors, PATCH_SIZE},
     structure::{Generation, State},
     torus::{Tiling, Torus},
 };
@@ -19,18 +19,7 @@ pub struct PatchTorus<S: State<Gen> + Copy, Gen: Generation, E: Effectors> {
 
 impl<S: State<Gen> + Copy, Gen: Generation, E: Effectors> Torus<S, Gen> for PatchTorus<S, Gen, E> {
     fn update_all(&self, generation: &Gen) -> Result<()> {
-        // let next_generation = generation.successor();
-        let patches = &self.crystal.generations[generation];
-        debug!("Number of patches: [{generation:?}]: {}", patches.len());
-        for patch in patches {
-            debug!("Patch size: {}", patch.size);
-            for i in 0..patch.size {
-                let location = LocationInPatch { index: i };
-                let new_state = S::update(patch, &location, generation)?;
-                debug!("New state: {new_state:?}")
-            }
-        }
-        Ok(())
+        self.crystal.update_all(generation)
     }
 
     fn info(&self, _generation: &Gen) {
