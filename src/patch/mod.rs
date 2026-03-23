@@ -23,9 +23,9 @@ pub use poc::example as poc_example;
 pub use torus::new_hexagonal_torus;
 
 use anyhow::{Result, anyhow};
-use std::{collections::HashMap, marker::PhantomData, ops::Range};
+use std::{cell::RefCell, collections::HashMap, marker::PhantomData, ops::Range, rc::Rc};
 
-use crate::structure::{Generation, Location, Region, State};
+use crate::structure::{Generation, Location, Region, Space, State};
 
 const PATCH_SIZE: u8 = 0xFF;
 const INTERNAL: u8 = 0xD * 0xD;
@@ -33,7 +33,7 @@ const INTERNAL: u8 = 0xD * 0xD;
 pub struct Crystal<S: State<Gen> + Copy, Gen: Generation, E: Effectors> {
     adjacent: Vec<HashMap<u8, usize>>,
     effectors: Vec<E>,
-    generations: HashMap<Gen, Vec<Patch<S, Gen>>>,
+    generations: HashMap<Gen, Vec<Rc<RefCell<Patch<S, Gen>>>>>,
 }
 
 impl<S: State<Gen> + Copy, Gen: Generation, E: Effectors> Crystal<S, Gen, E> {
@@ -46,8 +46,8 @@ impl<S: State<Gen> + Copy, Gen: Generation, E: Effectors> Crystal<S, Gen, E> {
         let mut patches = Vec::new();
         let mut adjacent = Vec::new();
         let mut effectors = Vec::new();
-        for _ in 0..patch_count {
-            patches.push(Patch::new_init(init));
+        for index in 0..patch_count {
+            patches.push(Rc::new(RefCell::new(Patch::new_init(init, index))));
             adjacent.push(HashMap::new());
             effectors.push(effector_factory())
         }
@@ -82,11 +82,15 @@ impl<S: State<Gen> + Copy, Gen: Generation, E: Effectors> Crystal<S, Gen, E> {
         // let next_generation = generation.successor();
         let patches = &self.generations[generation];
         debug!("Number of patches: [{generation:?}]: {}", patches.len());
-        for patch in patches {
+        for patch_ref in patches {
+            let patch = patch_ref.borrow();
             debug!("Patch size: {}", patch.size);
             for i in 0..patch.size {
-                let location = LocationInPatch { index: i };
-                let new_state = S::update(patch, &location, generation)?;
+                let location = LocationInPatch {
+                    index: i,
+                    patch: patch.index,
+                };
+                let new_state = S::update(self, patch_ref, &location, generation)?;
                 debug!("New state: {new_state:?}")
             }
         }
@@ -111,10 +115,25 @@ fn next_adjacent(map: &HashMap<u8, usize>) -> Result<u8> {
     }
 }
 
+impl<S, Gen, E> Space<S, Gen> for Crystal<S, Gen, E>
+where
+    S: State<Gen> + Copy,
+    Gen: Generation,
+    E: Effectors,
+{
+    type Reg = Rc<RefCell<Patch<S, Gen>>>;
+    type Loc = LocationInPatch;
+
+    fn regions(&self, generation: &Gen) -> impl IntoIterator<Item = Self::Reg> {
+        self.generations[generation].clone()
+    }
+}
+
 pub struct Patch<S: State<Gen> + Copy, Gen: Generation> {
     cells: [S; PATCH_SIZE as usize],
     cell_patch: [u8; PATCH_SIZE as usize],
     cell_index: [u8; PATCH_SIZE as usize],
+    index: usize,
     size: u8,
     _phantom: PhantomData<Gen>,
 }
@@ -124,30 +143,37 @@ where
     S: State<Gen> + Copy,
     Gen: Generation,
 {
-    pub fn new_init(init: S) -> Self {
+    pub fn new_init(init: S, index: usize) -> Self {
         Patch {
             cells: [init; PATCH_SIZE as usize],
             cell_patch: [0xFF; PATCH_SIZE as usize],
             cell_index: [0; PATCH_SIZE as usize],
+            index,
             size: 0,
             _phantom: PhantomData,
         }
     }
 }
 
-impl<S: State<Gen> + Copy, Gen: Generation> Region<S, Gen> for Patch<S, Gen> {
-    type Loc = LocationInPatch;
-
-    fn locations(&self) -> impl IntoIterator<Item = Self::Loc> {
+impl<Spc, S, Gen> Region<Spc, S, Gen> for Rc<RefCell<Patch<S, Gen>>>
+where
+    Spc: Space<S, Gen, Loc = LocationInPatch>,
+    S: State<Gen> + Copy,
+    Gen: Generation,
+{
+    fn locations(&self) -> impl IntoIterator<Item = Spc::Loc> {
+        let patch = self.borrow();
         AllLocationsInPatchIterator {
-            inner: 0..self.size,
+            inner: 0..patch.size,
+            patch: patch.index,
         }
     }
 
-    fn state(&self, location: &Self::Loc, _generation: &Gen) -> Option<S> {
+    fn state(&self, location: &Spc::Loc, _generation: &Gen) -> Option<S> {
         let i = location.index;
-        if i < self.size {
-            Some(self.cells[location.index as usize])
+        let region = self.borrow();
+        if i < region.size {
+            Some(region.cells[location.index as usize])
         } else {
             None
         }
@@ -155,12 +181,33 @@ impl<S: State<Gen> + Copy, Gen: Generation> Region<S, Gen> for Patch<S, Gen> {
 }
 
 pub struct LocationInPatch {
+    patch: usize,
     index: u8,
 }
 
-impl Location for LocationInPatch {
-    fn effectors<'a>(&'a self) -> Result<impl IntoIterator<Item = Self>> {
-        Ok([] as [LocationInPatch; 0])
+impl<S, Gen, E> Location<Crystal<S, Gen, E>, S, Gen> for LocationInPatch
+where
+    S: State<Gen> + Copy,
+    Gen: Generation,
+    E: Effectors,
+{
+    fn effectors(&self, space: &Crystal<S, Gen, E>) -> Result<impl IntoIterator<Item = Self>> {
+        let patch_effectors = &space.effectors[self.patch];
+        let cell_effectors = patch_effectors
+            .iter(self.index)
+            .map(|i| LocationInPatch {
+                index: i,
+                patch: self.patch,
+            })
+            .collect::<Vec<Self>>();
+        debug!(
+            "Effectors: [{}]: [{}]: [{}]: {:?}.",
+            self.patch,
+            self.index,
+            cell_effectors.len(),
+            cell_effectors.iter().map(|l| l.index).collect::<Vec<u8>>()
+        );
+        Ok(cell_effectors)
     }
 
     fn id(&self) -> String {
@@ -170,6 +217,7 @@ impl Location for LocationInPatch {
 
 pub struct AllLocationsInPatchIterator {
     inner: Range<u8>,
+    patch: usize,
 }
 
 impl Iterator for AllLocationsInPatchIterator {
@@ -177,7 +225,10 @@ impl Iterator for AllLocationsInPatchIterator {
 
     fn next(&mut self) -> Option<Self::Item> {
         if let Some(i) = self.inner.next() {
-            Some(LocationInPatch { index: i })
+            Some(LocationInPatch {
+                index: i,
+                patch: self.patch,
+            })
         } else {
             None
         }
@@ -208,6 +259,7 @@ impl<'a> Iterator for EffectorIterator<'a> {
 pub trait Effectors: Default {
     fn iter<'a>(&'a self, index: u8) -> EffectorIterator<'a>;
     fn add(&mut self, index: u8, effector_index: u8) -> Result<u8>;
+    fn debug<S: AsRef<str>>(&self, label: S);
 }
 
 #[derive(Clone)]
@@ -234,7 +286,7 @@ impl Effectors for AtMostSixEffectors {
         EffectorIterator {
             effectors: &self.effectors,
             pos: 6 * index as usize,
-            to_go: 6,
+            to_go: self.effector_counts[index as usize],
         }
     }
 
@@ -250,8 +302,17 @@ impl Effectors for AtMostSixEffectors {
         if n >= 6 {
             return Err(anyhow!("Cannot add more than 6 effectors"));
         }
-        self.effectors[6 * i + n] = effector_index;
+        self.effectors[base + n] = effector_index;
         self.effector_counts[i] += 1;
         Ok(self.effector_counts[i])
+    }
+
+    fn debug<S: AsRef<str>>(&self, label: S) {
+        for i in 0..self.effector_counts.len() {
+            let count = self.effector_counts[i];
+            if count > 0 {
+                debug!("{}: {i}: {count}", label.as_ref());
+            }
+        }
     }
 }

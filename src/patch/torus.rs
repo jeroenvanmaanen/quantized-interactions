@@ -43,7 +43,7 @@ pub fn new_hexagonal_torus<S: State<Gen> + Copy, Gen: Generation>(
     let effector_factory = || AtMostSixEffectors::default();
     let (w, h) = calculate_grid(width, height);
     let mut crystal = Crystal::new(w * h, &initial_gen, init, effector_factory);
-    connect_cells(&mut crystal, width, w, height, h)?;
+    connect_cells(&mut crystal, width, w, height, h, &initial_gen)?;
     Ok(PatchTorus {
         crystal,
         dimensions,
@@ -115,6 +115,7 @@ fn connect_cells<S, Gen, E>(
     w: usize,
     height: usize,
     h: usize,
+    generation: &Gen,
 ) -> Result<()>
 where
     S: State<Gen> + Copy,
@@ -150,6 +151,11 @@ where
             debug!(
                 "Patch: #{p}: [{r}]: [{c}]: ([{wc}] x [{hr}]): [{cell_colums_before}, {cell_rows_before}, {even}]"
             );
+            if let Some(patches) = crystal.generations.get_mut(generation) {
+                if let Some(patch) = patches.get_mut(p) {
+                    patch.borrow_mut().size = wc * hr;
+                }
+            }
             let effectors = &mut crystal.effectors[p];
             let mut offsets = even_offsets.clone();
             if !even {
@@ -167,6 +173,7 @@ where
                 offsets = offsets.other();
                 iy += wc;
             }
+            effectors.debug(format!("{p}"));
             if w_wrap {
                 debug!("Wrap left to right");
             }

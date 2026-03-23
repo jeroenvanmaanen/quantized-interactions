@@ -1,7 +1,6 @@
 use std::{
     fs::{OpenOptions, create_dir_all},
     path::PathBuf,
-    rc::Rc,
 };
 
 use anyhow::{Result, anyhow};
@@ -9,7 +8,7 @@ use image::{GrayImage, Luma};
 use log::{debug, info, trace};
 
 use crate::{
-    cell::{Cell, CellRegion, Generation, Location, Region, State},
+    cell::{Cell, CellRegion, CellSpace, Generation, Region, State},
     structure::{GrayScale, Space},
     torus::{
         GrayScaleTorus, Tiling, Torus,
@@ -87,60 +86,44 @@ impl<S: State<Gen>, Gen: Generation> Torus<S, Gen> for CellTorus<S, Gen> {
     fn update_all(&self, generation: &Gen) -> Result<()> {
         for cell in &self.cells {
             trace!("Update: [{:?}]", cell.id());
-            cell.update(generation)?;
+            let space = CellSpace;
+            cell.update(&space, generation)?;
         }
         Ok(())
     }
 }
 
-impl<S: State<Gen>, Gen: Generation> Region<S, Gen> for Rc<CellTorus<S, Gen>> {
+impl<S, Gen> Space<S, Gen> for CellTorus<S, Gen>
+where
+    S: State<Gen>,
+    Gen: Generation,
+{
+    type Reg = CellRegion<Self, S, Gen>;
     type Loc = Cell<S, Gen>;
 
-    fn locations(&self) -> impl IntoIterator<Item = Self::Loc> {
-        self.cells.clone()
-    }
-
-    fn state(&self, location: &Self::Loc, generation: &Gen) -> Option<S> {
-        location.state(self, generation)
+    fn regions(&self, _generation: &Gen) -> impl IntoIterator<Item = Self::Reg> {
+        let region = CellRegion::default();
+        [region]
     }
 }
 
-impl<S: State<Gen>, Gen: Generation> Space<S, Gen> for Rc<CellTorus<S, Gen>> {
-    type Reg = Rc<CellTorus<S, Gen>>;
-
-    fn regions(&self) -> impl IntoIterator<Item = Self::Reg> {
-        Some(self.clone())
-    }
-
-    fn reduce<A, F>(&self, init: A, f: F) -> A
-    where
-        F: Fn(&Self::Reg, &<Self::Reg as Region<S, Gen>>::Loc, A) -> A,
-    {
-        let mut accumulator = init;
-        for region in self.regions() {
-            for location in region.locations() {
-                accumulator = f(&region, &location, accumulator);
-            }
-        }
-        accumulator
-    }
-}
-
-impl<S: State<Gen> + GrayScale, Gen: Generation> GrayScaleTorus<S, Gen> for CellTorus<S, Gen> {
-    fn export<Reg>(
+impl<Spc, S, Gen> GrayScaleTorus<Spc, S, Gen> for CellTorus<S, Gen>
+where
+    Spc: Space<S, Gen, Loc = Cell<S, Gen>>,
+    S: State<Gen> + GrayScale,
+    Gen: Generation,
+{
+    fn export(
         &self,
-        _region: &Reg,
+        _region: &Spc::Reg,
         generation: &Gen,
         context: &<S as GrayScale>::Context,
         export_dir: Option<&PathBuf>,
-    ) -> Result<()>
-    where
-        Reg: Region<S, Gen, Loc = Cell<S, Gen>>,
-    {
+    ) -> Result<()> {
         if let Some(dir) = export_dir {
             create_dir_all(&dir)?;
             match self.tiling {
-                Tiling::Hexagons => export::<S, Reg, Gen>(self, generation, context, &dir)?,
+                Tiling::Hexagons => export::<S, Gen>(self, generation, context, &dir)?,
                 _ => todo!(),
             }
         }
@@ -369,7 +352,7 @@ fn line_to_string<S: State<Gen>, Gen: Generation>(
     prefix: &str,
     sep: &str,
 ) -> String {
-    let region = CellRegion::default();
+    let region: CellRegion<CellSpace, S, Gen> = CellRegion::default();
     let mut line = prefix.to_string();
     for x in 0..width {
         let s = (region.state(&cells[(x + offset) % width], generation) as Option<S>)
@@ -381,12 +364,16 @@ fn line_to_string<S: State<Gen>, Gen: Generation>(
     line
 }
 
-fn export<S: State<Gen> + GrayScale, Reg: Region<S, Gen, Loc = Cell<S, Gen>>, Gen: Generation>(
+fn export<S, Gen>(
     torus: &CellTorus<S, Gen>,
     generation: &Gen,
     context: &<S as GrayScale>::Context,
     dir: &PathBuf,
-) -> Result<()> {
+) -> Result<()>
+where
+    S: State<Gen> + GrayScale,
+    Gen: Generation,
+{
     if torus.dimensions.len() != 2 {
         return Err(anyhow!("Torus should be two-dimensional"));
     }
@@ -394,7 +381,7 @@ fn export<S: State<Gen> + GrayScale, Reg: Region<S, Gen, Loc = Cell<S, Gen>>, Ge
     let width = torus.dimensions[1];
     let mut img = GrayImage::new((width * 4 + 2) as u32, (height * 3 + 1) as u32);
 
-    let region = CellRegion::default();
+    let region: CellRegion<CellTorus<S, Gen>, S, Gen> = CellRegion::default();
     let mut offset = 0;
     for y in 0..height {
         let line = &torus.cells[offset..(offset + width)];

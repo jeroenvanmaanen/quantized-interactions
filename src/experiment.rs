@@ -1,6 +1,6 @@
 use crate::{
     cell::new_cell_torus,
-    structure::{Generation, Location, Region, State},
+    structure::{Generation, Location, Region, Space, State},
     torus::{Tiling, Torus},
 };
 use anyhow::Result;
@@ -24,9 +24,10 @@ impl Rotate {
 }
 
 impl State<usize> for Rotate {
-    fn update<Reg: Region<Self, usize>>(
-        region: &Reg,
-        location: &<Reg as Region<Self, usize>>::Loc,
+    fn update<Spc: Space<Self, usize>>(
+        space: &Spc,
+        region: &Spc::Reg,
+        location: &Spc::Loc,
         generation: &usize,
     ) -> Result<Self> {
         trace!("Update: [{}]", location.id());
@@ -36,7 +37,7 @@ impl State<usize> for Rotate {
         trace!("This state: [{this_state:?}]");
         let mut count = 0;
         let mut angle = 0f64;
-        for effector in location.effectors()? {
+        for effector in location.effectors(space)? {
             count += 1;
             trace!("Effector: [{}]", effector.id());
             if let Some(state) = region.state(&effector, generation) as Option<Self> {

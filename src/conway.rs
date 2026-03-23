@@ -2,7 +2,7 @@ use std::fmt::{Display, Write};
 
 use crate::{
     cell::new_cell_torus,
-    structure::{Generation, Location, Region, State},
+    structure::{Generation, Location, Region, Space, State},
     torus::{Tiling, Torus},
 };
 use anyhow::Result;
@@ -22,9 +22,10 @@ impl Conway {
 }
 
 impl State<usize> for Conway {
-    fn update<Reg: Region<Self, usize>>(
-        region: &Reg,
-        location: &<Reg as Region<Self, usize>>::Loc,
+    fn update<Spc: Space<Self, usize>>(
+        space: &Spc,
+        region: &Spc::Reg,
+        location: &Spc::Loc,
         generation: &usize,
     ) -> Result<Self> {
         trace!("Update: [{}]", location.id());
@@ -33,7 +34,7 @@ impl State<usize> for Conway {
             .unwrap_or(false);
         trace!("This state: [{this_state:?}]");
         let mut count = 0;
-        for effector in location.effectors()? {
+        for effector in location.effectors(space)? {
             trace!("Effector: [{}]", effector.id());
             if let Some(state) = region.state(&effector, generation) as Option<Self> {
                 if state.alive {

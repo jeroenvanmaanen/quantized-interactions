@@ -1,6 +1,6 @@
 mod torus;
 
-pub use torus::new_cell_torus;
+pub use torus::{CellTorus, new_cell_torus};
 
 use anyhow::{Result, anyhow};
 // use log::debug;
@@ -9,30 +9,80 @@ use std::{
     collections::{HashMap, HashSet},
     fmt::Debug,
     hash::Hash,
+    marker::PhantomData,
     rc::Rc,
     sync::RwLock,
 };
 use uuid::Uuid;
 
-use crate::structure::{Generation, Location, Region, State};
+use crate::structure::{Generation, Location, Region, Space, State};
+
+pub struct CellRegion<Spc, S, Gen>
+where
+    Spc: Space<S, Gen>,
+    S: State<Gen>,
+    Gen: Generation,
+{
+    _space: PhantomData<Spc>,
+    _state: PhantomData<S>,
+    _generation: PhantomData<Gen>,
+}
+
+impl<Spc, S, Gen> Default for CellRegion<Spc, S, Gen>
+where
+    Spc: Space<S, Gen>,
+    S: State<Gen>,
+    Gen: Generation,
+{
+    fn default() -> Self {
+        Self {
+            _space: Default::default(),
+            _state: Default::default(),
+            _generation: Default::default(),
+        }
+    }
+}
 
 #[derive(Default)]
-pub struct CellRegion;
+pub struct CellSpace;
 
-impl<S: State<Gen>, Gen: Generation> Region<S, Gen> for CellRegion {
+impl<S: State<Gen>, Gen: Generation> Space<S, Gen> for CellSpace {
+    type Reg = CellRegion<Self, S, Gen>;
     type Loc = Cell<S, Gen>;
 
-    fn locations(&self) -> impl IntoIterator<Item = Self::Loc> {
+    fn regions(&self, _generation: &Gen) -> impl IntoIterator<Item = Self::Reg> {
+        let region: Self::Reg = CellRegion {
+            _space: PhantomData,
+            _state: PhantomData,
+            _generation: PhantomData,
+        };
+        [region]
+    }
+}
+
+impl<Spc, S, Gen> Region<Spc, S, Gen> for CellRegion<Spc, S, Gen>
+where
+    Spc: Space<S, Gen, Reg = Self, Loc = Cell<S, Gen>>,
+    S: State<Gen>,
+    Gen: Generation,
+{
+    fn locations(&self) -> impl IntoIterator<Item = Spc::Loc> {
         HashSet::new()
     }
 
-    fn state(&self, location: &Self::Loc, generation: &Gen) -> Option<S> {
-        location.state(self, generation)
+    fn state(&self, location: &Spc::Loc, generation: &Gen) -> Option<S> {
+        location.state::<Spc>(self, generation)
     }
 }
 
 #[derive(Debug)]
 pub struct Cell<S: State<Gen>, Gen: Generation>(Rc<InnerCell<S, Gen>>);
+
+impl<S: State<Gen>, Gen: Generation> Cell<S, Gen> {
+    fn id(&self) -> String {
+        self.0.id.to_string()
+    }
+}
 
 impl<S: State<Gen>, Gen: Generation> Clone for Cell<S, Gen> {
     fn clone(&self) -> Self {
@@ -53,8 +103,13 @@ impl<S: State<Gen>, Gen: Generation> PartialEq for Cell<S, Gen> {
 }
 impl<S: State<Gen>, Gen: Generation> Eq for Cell<S, Gen> {}
 
-impl<S: State<Gen>, Gen: Generation> Location for Cell<S, Gen> {
-    fn effectors(&self) -> Result<impl IntoIterator<Item = Self>> {
+impl<Spc, S, Gen> Location<Spc, S, Gen> for Cell<S, Gen>
+where
+    Spc: Space<S, Gen>,
+    S: State<Gen>,
+    Gen: Generation,
+{
+    fn effectors(&self, _space: &Spc) -> Result<impl IntoIterator<Item = Self>> {
         self.0.effectors.read().map(|s| s.clone()).map_err(|e| {
             anyhow!(
                 "Could not get read lock for effectors of: {:?}: {:?}",
@@ -65,7 +120,7 @@ impl<S: State<Gen>, Gen: Generation> Location for Cell<S, Gen> {
     }
 
     fn id(&self) -> String {
-        self.0.id.to_string()
+        self.id()
     }
 }
 
@@ -86,18 +141,25 @@ impl<S: State<Gen>, Gen: Generation> Cell<S, Gen> {
         Ok(())
     }
 
-    pub fn state<Reg: Region<S, Gen>>(&self, _region: &Reg, generation: &Gen) -> Option<S> {
+    pub fn state<Spc: Space<S, Gen>>(&self, _region: &Spc::Reg, generation: &Gen) -> Option<S> {
         let guard = self.0.state_map.read().ok();
         guard.map(|m| m.get(generation).map(Clone::clone)).flatten()
     }
 
-    pub fn update(&self, generation: &Gen) -> Result<()> {
+    pub fn update<Spc>(&self, space: &Spc, generation: &Gen) -> Result<()>
+    where
+        Spc: Space<S, Gen, Reg = CellRegion<Spc, S, Gen>, Loc = Cell<S, Gen>>,
+    {
         let next_gen = generation.successor();
         if self.has_state(&next_gen) {
             return Ok(());
         }
-        let region = CellRegion::default();
-        let new_state = S::update(&region, self, &generation)?;
+        let region = CellRegion {
+            _space: PhantomData,
+            _state: PhantomData,
+            _generation: PhantomData,
+        };
+        let new_state = S::update(space, &region, self, &generation)?;
         let mut guard = self
             .0
             .state_map

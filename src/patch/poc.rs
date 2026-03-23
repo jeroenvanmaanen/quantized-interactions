@@ -2,7 +2,7 @@ use std::{collections::HashSet, fmt::Display};
 
 use crate::{
     patch::new_hexagonal_torus,
-    structure::{Location, Region, State},
+    structure::{Generation, Location, Region, Space, State},
     torus::Torus,
 };
 
@@ -18,8 +18,13 @@ impl Display for Trivial {
     }
 }
 
-impl Location for u8 {
-    fn effectors(&self) -> Result<impl IntoIterator<Item = Self>> {
+impl<Spc, S, Gen> Location<Spc, S, Gen> for u8
+where
+    Spc: Space<S, Gen> + ?Sized,
+    S: State<Gen>,
+    Gen: Generation,
+{
+    fn effectors(&self, _space: &Spc) -> Result<impl IntoIterator<Item = Self>> {
         Ok(HashSet::new())
     }
 
@@ -28,26 +33,25 @@ impl Location for u8 {
     }
 }
 
-impl Region<Trivial, usize> for () {
-    type Loc = u8;
-
-    fn locations(&self) -> impl IntoIterator<Item = Self::Loc> {
+impl<Spc: Space<Trivial, usize>> Region<Spc, Trivial, usize> for () {
+    fn locations(&self) -> impl IntoIterator<Item = Spc::Loc> {
         HashSet::new()
     }
 
-    fn state(&self, _location: &Self::Loc, _generation: &usize) -> Option<Trivial> {
+    fn state(&self, _location: &Spc::Loc, _generation: &usize) -> Option<Trivial> {
         None
     }
 }
 
 impl State<usize> for Trivial {
-    fn update<Reg: Region<Self, usize>>(
-        _region: &Reg,
-        location: &<Reg as Region<Self, usize>>::Loc,
+    fn update<Spc: Space<Self, usize>>(
+        space: &Spc,
+        _region: &Spc::Reg,
+        location: &Spc::Loc,
         _generation: &usize,
     ) -> Result<Self> {
-        let count = location.effectors().into_iter().count();
-        if count != 6 {
+        let count = location.effectors(space)?.into_iter().count();
+        if count != 6 && count != 0 {
             return Err(anyhow!("Wrong count: [{}]", count));
         }
         Ok(Trivial)

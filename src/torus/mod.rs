@@ -4,10 +4,7 @@ use std::path::PathBuf;
 
 pub use utils::get_index;
 
-use crate::{
-    cell::Cell,
-    structure::{Generation, GrayScale, Region, State},
-};
+use crate::structure::{Generation, GrayScale, Space, State};
 use anyhow::Result;
 
 #[allow(dead_code)]
@@ -25,14 +22,17 @@ pub trait Torus<S: State<Gen>, Gen: Generation>: Sized {
     fn info(&self, generation: &Gen);
 }
 
-pub trait GrayScaleTorus<S: State<Gen> + GrayScale, Gen: Generation>: Torus<S, Gen> {
-    fn export<Reg>(
+pub trait GrayScaleTorus<Spc, S, Gen>: Torus<S, Gen>
+where
+    Spc: Space<S, Gen>,
+    S: State<Gen> + GrayScale,
+    Gen: Generation,
+{
+    fn export(
         &self,
-        _region: &Reg,
+        _region: &Spc::Reg,
         generation: &Gen,
         context: &<S as GrayScale>::Context,
         export_dir: Option<&PathBuf>,
-    ) -> Result<()>
-    where
-        Reg: Region<S, Gen, Loc = Cell<S, Gen>>;
+    ) -> Result<()>;
 }

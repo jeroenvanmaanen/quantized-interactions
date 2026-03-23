@@ -1,5 +1,5 @@
 use crate::{
-    cell::new_cell_torus,
+    cell::{CellRegion, CellTorus, new_cell_torus},
     structure::{Generation, GrayScale, Location, Region, Space, State},
     torus::{GrayScaleTorus, Tiling, Torus, get_index},
 };
@@ -9,12 +9,11 @@ use std::{
     f64::{MAX, consts::PI},
     fmt::{Display, Write},
     path::PathBuf,
-    rc::Rc,
 };
 // use log::debug;
 use log::{info, trace};
 
-#[derive(Clone, Debug, Default)]
+#[derive(Copy, Clone, Debug, Default)]
 pub struct Wave {
     amplitude: f64,
     velocity: f64,
@@ -34,15 +33,16 @@ impl Wave {
 }
 
 impl State<usize> for Wave {
-    fn update<Reg: Region<Self, usize>>(
-        region: &Reg,
-        location: &<Reg as Region<Self, usize>>::Loc,
+    fn update<Spc: Space<Self, usize>>(
+        space: &Spc,
+        region: &Spc::Reg,
+        location: &Spc::Loc,
         generation: &usize,
     ) -> Result<Self> {
         trace!("Update: [{}]", location.id());
         let this_state: Self = region.state(location, generation).unwrap_or_default();
         trace!("This state: [{this_state:?}]");
-        let effectors = location.effectors()?;
+        let effectors = location.effectors(space)?;
         let mut next_amplitude = this_state.amplitude;
         let mut next_velocity = this_state.velocity;
         next_amplitude += next_velocity;
@@ -131,28 +131,37 @@ pub fn example(size: usize, export_dir: Option<&PathBuf>) -> Result<()> {
             Wave::new(0.0, c)
         },
     )?;
-    let torus = Rc::new(torus);
+    let torus = &torus;
+    let grayscale = as_grayscale(torus);
+    let region = CellRegion::default();
     // torus.info(&generation);
     for i in 1..=(size * 10) {
         torus.update_all(&generation)?;
         generation = generation.successor();
         // torus.info(&generation);
-        let m = smallest_local_maximum(&torus, &generation);
+        let m = smallest_local_maximum(torus, &generation);
         info!("Smallest local maximum: [{generation}]: [{m}]");
         if i % size == 0 {
-            torus.export(&torus, &generation, &m, export_dir)?;
+            grayscale.export(&region, &generation, &m, export_dir)?;
         }
     }
     Ok(())
+}
+
+fn as_grayscale(
+    torus: &CellTorus<Wave, usize>,
+) -> &impl GrayScaleTorus<CellTorus<Wave, usize>, Wave, usize> {
+    torus
 }
 
 #[derive(Default, Debug, Clone)]
 struct Coords(usize, usize, usize);
 
 impl<Gen: Generation> State<Gen> for Coords {
-    fn update<Reg: Region<Self, Gen>>(
-        region: &Reg,
-        location: &<Reg as Region<Self, Gen>>::Loc,
+    fn update<Spc: Space<Self, Gen>>(
+        _space: &Spc,
+        region: &Spc::Reg,
+        location: &Spc::Loc,
         generation: &Gen,
     ) -> Result<Self> {
         return Ok(region.state(location, generation).unwrap_or_default());
@@ -192,8 +201,8 @@ pub fn debug(size: usize) -> Result<()> {
 }
 
 fn smallest_local_maximum(torus: &impl Space<Wave, usize>, generation: &usize) -> f64 {
-    let result = torus.reduce(MAX, |r, c, a| {
-        if let Ok(Some(amplitude)) = local_maximum(r, c, generation) {
+    let result = torus.reduce(generation, MAX, |r, c, a| {
+        if let Ok(Some(amplitude)) = local_maximum(torus, r, c, generation) {
             if amplitude < a { amplitude } else { a }
         } else {
             a
@@ -202,9 +211,10 @@ fn smallest_local_maximum(torus: &impl Space<Wave, usize>, generation: &usize) -
     if result <= 0.0 { 1.0 } else { result }
 }
 
-fn local_maximum<Reg: Region<Wave, usize>>(
-    region: &Reg,
-    location: &Reg::Loc,
+fn local_maximum<Spc: Space<Wave, usize>>(
+    space: &Spc,
+    region: &Spc::Reg,
+    location: &Spc::Loc,
     generation: &usize,
 ) -> Result<Option<f64>> {
     if let Some(this_state) = region.state(location, generation) as Option<Wave> {
@@ -212,7 +222,7 @@ fn local_maximum<Reg: Region<Wave, usize>>(
         if amplitude <= 0.0 {
             return Ok(None);
         }
-        for effector in location.effectors()? {
+        for effector in location.effectors(space)? {
             if let Some(other_state) = region.state(&effector, generation) as Option<Wave> {
                 if other_state.amplitude.abs() > amplitude {
                     return Ok(None);

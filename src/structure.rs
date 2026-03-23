@@ -7,23 +7,24 @@ use std::{
 pub trait Generation: Hash + Eq + PartialEq + Debug + Clone {
     fn successor(&self) -> Self;
 }
-pub trait Region<S: State<Gen>, Gen: Generation> {
-    type Loc: Location;
 
-    fn locations(&self) -> impl IntoIterator<Item = Self::Loc>;
-    fn state(&self, location: &Self::Loc, generation: &Gen) -> Option<S>;
+pub trait Region<Spc: Space<S, Gen> + ?Sized, S: State<Gen>, Gen: Generation>: Sized {
+    fn locations(&self) -> impl IntoIterator<Item = Spc::Loc>;
+    fn state(&self, location: &Spc::Loc, generation: &Gen) -> Option<S>;
 }
+
 pub trait Space<S: State<Gen>, Gen: Generation> {
-    type Reg: Region<S, Gen>;
+    type Reg: Region<Self, S, Gen>;
+    type Loc: Location<Self, S, Gen>;
 
-    fn regions(&self) -> impl IntoIterator<Item = Self::Reg>;
+    fn regions(&self, generation: &Gen) -> impl IntoIterator<Item = Self::Reg>;
 
-    fn reduce<A, F>(&self, init: A, f: F) -> A
+    fn reduce<A, F>(&self, generation: &Gen, init: A, f: F) -> A
     where
-        F: Fn(&Self::Reg, &<Self::Reg as Region<S, Gen>>::Loc, A) -> A,
+        F: Fn(&Self::Reg, &Self::Loc, A) -> A,
     {
         let mut accumulator = init;
-        for region in self.regions() {
+        for region in self.regions(generation) {
             for location in region.locations() {
                 accumulator = f(&region, &location, accumulator);
             }
@@ -32,15 +33,16 @@ pub trait Space<S: State<Gen>, Gen: Generation> {
     }
 }
 
-pub trait Location: Sized {
-    fn effectors(&self) -> Result<impl IntoIterator<Item = Self>>;
+pub trait Location<Spc: Space<S, Gen> + ?Sized, S: State<Gen>, Gen: Generation>: Sized {
+    fn effectors(&self, space: &Spc) -> Result<impl IntoIterator<Item = Self>>;
     fn id(&self) -> String;
 }
 
 pub trait State<Gen: Generation>: Debug + Clone + Display {
-    fn update<Reg: Region<Self, Gen>>(
-        region: &Reg,
-        location: &<Reg as Region<Self, Gen>>::Loc,
+    fn update<Spc: Space<Self, Gen>>(
+        space: &Spc,
+        region: &Spc::Reg,
+        location: &Spc::Loc,
         generation: &Gen,
     ) -> Result<Self>;
 }
