@@ -134,11 +134,9 @@ where
     let wp = width / w; // With of a small patch
     let wq = width - w * (wp as usize); // Number of collums that are one cell wider
     let wp = wp as u8;
-    let w_wrap = w <= 1;
     let hp = height / h; // Height of a small patch
     let hq = height - h * hp; // Number of rows that are one cell taller
     let hp = hp as u8;
-    let h_wrap = h <= 1;
     let mut cell_rows_before = 0;
     let mut br = 0;
     for r in 0..h {
@@ -161,12 +159,16 @@ where
             if !even {
                 offsets = offsets.other();
             }
+            let er = if r > 0 { 1 } else { 0 };
             let mut iy = wc;
-            for _ in 1..(hr - 1) {
-                for x in 1..(wc - 1) {
+            for y in er..(hr - er) {
+                let ec = if c > 0 { 1 } else { 0 };
+                for x in ec..(wc - ec) {
                     let i = iy + x;
                     for (ox, oy) in offsets.offsets() {
-                        let j = i + (oy * wc) - wc + ox - 1;
+                        let xx = (x + ox + wc - 1) % wc;
+                        let yy = (y + oy + hr - 1) % hr;
+                        let j = (yy * wc) + xx;
                         effectors.add(i, j)?;
                     }
                 }
@@ -174,12 +176,6 @@ where
                 iy += wc;
             }
             effectors.debug(format!("{p}"));
-            if w_wrap {
-                debug!("Wrap left to right");
-            }
-            if h_wrap {
-                debug!("Wrap top to bottom");
-            }
             cell_colums_before += wc;
         }
         cell_rows_before += hr;
