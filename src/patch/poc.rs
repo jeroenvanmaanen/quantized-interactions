@@ -63,6 +63,7 @@ pub fn example() -> Result<()> {
     let crystal = new_hexagonal_torus(Trivial::default(), 0usize, 40, 30)?;
     let generation = 0usize;
     crystal.update_all(&generation)?;
+    crystal.info(&generation);
 
     Ok(())
 }

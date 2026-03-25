@@ -8,7 +8,7 @@ use crate::structure::{Generation, GrayScale, Space, State};
 use anyhow::Result;
 
 #[allow(dead_code)]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Tiling {
     Orthogonal,
     OrthogonalAndDiagonal,

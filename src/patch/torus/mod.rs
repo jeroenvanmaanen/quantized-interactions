@@ -1,13 +1,15 @@
-use std::rc::Rc;
+mod info;
 
 use anyhow::{Result, anyhow};
-use log::debug;
+use log::{debug, warn};
+use std::rc::Rc;
 
 use crate::{
     patch::{AtMostSixEffectors, Effectors, PATCH_SIZE},
     structure::{Generation, State},
     torus::{Tiling, Torus},
 };
+use info::info_hexagons;
 
 use super::Crystal;
 
@@ -23,7 +25,11 @@ impl<S: State<Gen> + Copy, Gen: Generation, E: Effectors> Torus<S, Gen> for Patc
     }
 
     fn info(&self, _generation: &Gen) {
-        todo!()
+        if self.tiling == Tiling::Hexagons {
+            info_hexagons(self);
+        } else {
+            warn!("No info for tiling: [{:?}]", self.tiling)
+        }
     }
 }
 
@@ -43,7 +49,7 @@ pub fn new_hexagonal_torus<S: State<Gen> + Copy, Gen: Generation>(
     let effector_factory = || AtMostSixEffectors::default();
     let (w, h) = calculate_grid(width, height);
     let mut crystal = Crystal::new(w * h, &initial_gen, init, effector_factory);
-    connect_cells(&mut crystal, width, w, height, h, &initial_gen)?;
+    connect_cells_hexagonally(&mut crystal, width, w, height, h, &initial_gen)?;
     Ok(PatchTorus {
         crystal,
         dimensions,
@@ -109,7 +115,7 @@ fn calculate_footprint(long: usize, short: usize, s: usize) -> (usize, usize, us
     footprint
 }
 
-fn connect_cells<S, Gen, E>(
+fn connect_cells_hexagonally<S, Gen, E>(
     crystal: &mut Crystal<S, Gen, E>,
     width: usize,
     w: usize,
