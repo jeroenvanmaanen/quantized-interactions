@@ -31,9 +31,13 @@ const PATCH_SIZE: u8 = 0xFF;
 const INTERNAL: u8 = 0xD * 0xD;
 
 pub struct Crystal<S: State<Gen> + Copy, Gen: Generation, E: Effectors> {
-    adjacent: Vec<HashMap<u8, usize>>,
-    effectors: Vec<E>,
+    patch_links: Vec<PatchLinks<E>>,
     generations: HashMap<Gen, Vec<Rc<RefCell<Patch<S, Gen>>>>>,
+}
+
+struct PatchLinks<E: Effectors> {
+    edges: HashMap<u8, (usize, u8)>,
+    effectors: E,
 }
 
 impl<S: State<Gen> + Copy, Gen: Generation, E: Effectors> Crystal<S, Gen, E> {
@@ -44,38 +48,20 @@ impl<S: State<Gen> + Copy, Gen: Generation, E: Effectors> Crystal<S, Gen, E> {
         effector_factory: impl Fn() -> E,
     ) -> Self {
         let mut patches = Vec::new();
-        let mut adjacent = Vec::new();
-        let mut effectors = Vec::new();
+        let mut patch_links = Vec::new();
         for index in 0..patch_count {
             patches.push(Rc::new(RefCell::new(Patch::new_init(init, index))));
-            adjacent.push(HashMap::new());
-            effectors.push(effector_factory())
+            patch_links.push(PatchLinks {
+                edges: HashMap::new(),
+                effectors: effector_factory(),
+            });
         }
         let mut generations = HashMap::new();
         generations.insert(generation.clone(), patches);
         Crystal {
-            adjacent,
-            effectors,
+            patch_links,
             generations,
         }
-    }
-
-    pub fn join_patches(&mut self, this_index: usize, that_index: usize) -> Result<()> {
-        if this_index > self.adjacent.len() || that_index > self.adjacent.len() {
-            return Err(anyhow!(
-                "Index out of bounds: [{:?}]: [{this_index:?}]: [{that_index:?}]",
-                self.adjacent.len()
-            ));
-        }
-        {
-            let this_adjacent = &mut self.adjacent[this_index];
-            this_adjacent.insert(next_adjacent(&this_adjacent)?, that_index);
-        }
-        {
-            let that_adjacent = &mut self.adjacent[that_index];
-            that_adjacent.insert(next_adjacent(&that_adjacent)?, this_index);
-        }
-        Ok(())
     }
 
     fn update_all(&self, generation: &Gen) -> Result<()> {
@@ -98,7 +84,7 @@ impl<S: State<Gen> + Copy, Gen: Generation, E: Effectors> Crystal<S, Gen, E> {
     }
 
     pub fn patch_count(&self) -> usize {
-        self.adjacent.len()
+        self.patch_links.len()
     }
 }
 
@@ -192,7 +178,7 @@ where
     E: Effectors,
 {
     fn effectors(&self, space: &Crystal<S, Gen, E>) -> Result<impl IntoIterator<Item = Self>> {
-        let patch_effectors = &space.effectors[self.patch];
+        let patch_effectors = &space.patch_links[self.patch].effectors;
         let cell_effectors = patch_effectors
             .iter(self.index)
             .map(|i| LocationInPatch {
