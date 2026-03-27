@@ -3,7 +3,7 @@ use std::{collections::HashMap, iter::repeat};
 use log::info;
 
 use crate::{
-    patch::AtMostSixEffectors,
+    patch::{AtMostSixEffectors, Effectors},
     structure::{Generation, State},
 };
 
@@ -38,16 +38,12 @@ where
         info!("");
         info!("## Patch: {i}: effectors");
         let projections = |e: &AtMostSixEffectors, x, y, w| {
-            let base = (index(x, y, w) as usize) * 6;
-            vec![
-                index(x, y, w),
-                e.effectors[base + 0],
-                e.effectors[base + 1],
-                e.effectors[base + 2],
-                e.effectors[base + 3],
-                e.effectors[base + 4],
-                e.effectors[base + 5],
-            ]
+            let index = index(x, y, w);
+            let mut result = vec![index];
+            for effector in e.iter(index) {
+                result.push(effector);
+            }
+            result
         };
         info_hexagon(
             &patch_links.effectors,
