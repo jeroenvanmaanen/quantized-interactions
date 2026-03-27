@@ -166,10 +166,10 @@ where
             if !even {
                 offsets = offsets.other();
             }
-            let er = if r > 0 { 1 } else { 0 };
+            let er = if h > 1 { 1 } else { 0 };
             let mut iy = wc;
             for y in er..(hr - er) {
-                let ec = if c > 0 { 1 } else { 0 };
+                let ec = if w > 1 { 1 } else { 0 };
                 for x in ec..(wc - ec) {
                     let i = iy + x;
                     for (ox, oy) in offsets.offsets() {
@@ -185,47 +185,46 @@ where
             effectors.debug(format!("{p}"));
             cell_colums_before += wc;
 
-            if r > 1 || c > 1 {
-                let edges = &mut crystal.patch_links[p].edges;
-                if r > 1 {
-                    let this_base = (hr - 1) * wc;
-                    let above = (r + h - 1) % h;
-                    let above_base = (patch_grid.row_height(above) - 2) * wc;
-                    let below = (r + 1) % h;
-                    let fudge = if c > 1 { 1 } else { 0 };
-                    for i in fudge..(wc - fudge) {
-                        edges.insert(i, (above * w + c, above_base + i)); // top to bottom of above
-                        edges.insert(this_base + i, (below * w + c, wc + i)); // bottom to top of below
-                    }
+            let edges = &mut crystal.patch_links[p].edges;
+            if h > 1 {
+                let this_base = (hr - 1) * wc;
+                let above = (r + h - 1) % h;
+                let above_base = (patch_grid.row_height(above) - 2) * wc;
+                let below = (r + 1) % h;
+                let fudge = if w > 1 { 1 } else { 0 };
+                for i in fudge..(wc - fudge) {
+                    edges.insert(i, (above * w + c, above_base + i)); // top to bottom of above
+                    edges.insert(this_base + i, (below * w + c, wc + i)); // bottom to top of below
                 }
-                if c > 1 {
-                    let row = r * w;
-                    let this_base = wc - 1;
-                    let left = (c + w - 1) % w;
-                    let left_base = patch_grid.column_width(left) - 2; // Width of this column
+            }
+            if w > 1 {
+                let row = r * w;
+                let this_base = wc - 1;
+                let left = (c + w - 1) % w;
+                let left_width = patch_grid.column_width(left);
+                let right = (c + 1) % w;
+                let right_base = patch_grid.column_width(right);
+                let fudge = if h > 1 { 1 } else { 0 };
+                for i in fudge..(hr - fudge) {
+                    edges.insert(i * wc, (row + left, ((i + 1) * left_width) - 2)); // leftmost cell to rightmost cell of patch to the left
+                    edges.insert(this_base + (i * wc), (row + right, (i * right_base) + 1)); // rightmost cell to leftmost cell of patch to the right
+                }
+                if h > 1 {
+                    // Insert corners
+                    let above = (r + h - 1) % h;
+                    let lft = (c + w - 1) % w;
+                    let lft_wc = patch_grid.column_width(lft);
                     let right = (c + 1) % w;
-                    let fudge = if r > 1 { 1 } else { 0 };
-                    for i in fudge..(hr - fudge) {
-                        edges.insert(i * wc, (row + left, left_base + (i * wc))); // top to bottom of above
-                        edges.insert(this_base + (i * wc), (row + right, this_base + (i * wc))); // bottom to top of below
-                    }
-                    if r > 1 {
-                        // Insert corners
-                        let above = (r + h - 1) % h;
-                        let lft = (c + w - 1) % w;
-                        let lft_wc = patch_grid.column_width(lft);
-                        let right = (c + 1) % w;
-                        let below = (r + 1) % h;
+                    let below = (r + 1) % h;
 
-                        let top_lft_remote_index = patch_grid.bot_row_base(above, lft) + lft_wc - 2;
-                        edges.insert(0, (above * w + lft, top_lft_remote_index));
-                        let top_right_remote_index = patch_grid.bot_row_base(above, right) + 1;
-                        edges.insert(wc - 1, (above * w + right, top_right_remote_index));
-                        let bot_lft_remote_index = patch_grid.top_row_base(c) + lft_wc - 2;
-                        edges.insert((hr - 1) * wc, (below * w + lft, bot_lft_remote_index));
-                        let bot_right_remote_index = patch_grid.top_row_base(c) + 1;
-                        edges.insert(hr * wc - 1, (below * w + right, bot_right_remote_index));
-                    }
+                    let top_lft_remote_index = patch_grid.bot_row_base(above, lft) + lft_wc - 2;
+                    edges.insert(0, (above * w + lft, top_lft_remote_index));
+                    let top_right_remote_index = patch_grid.bot_row_base(above, right) + 1;
+                    edges.insert(wc - 1, (above * w + right, top_right_remote_index));
+                    let bot_lft_remote_index = patch_grid.top_row_base(c) + lft_wc - 2;
+                    edges.insert((hr - 1) * wc, (below * w + lft, bot_lft_remote_index));
+                    let bot_right_remote_index = patch_grid.top_row_base(c) + 1;
+                    edges.insert(hr * wc - 1, (below * w + right, bot_right_remote_index));
                 }
             }
         }
@@ -246,11 +245,17 @@ struct PatchGrid {
 
 impl PatchGrid {
     fn new(width: usize, w: usize, height: usize, h: usize) -> Self {
-        let wp = width / w; // With of a small patch
+        let mut wp = width / w; // With of a small patch
         let wq = width - w * (wp as usize); // Number of collums that are one cell wider
+        if w > 1 {
+            wp += 2; // Add width for edges
+        }
         let wp = wp as u8;
-        let hp = height / h; // Height of a small patch
+        let mut hp = height / h + (if h > 1 { 2 } else { 0 }); // Height of a small patch
         let hq = height - h * hp; // Number of rows that are one cell taller
+        if h > 1 {
+            hp += 2; // Add height for edges
+        }
         let hp = hp as u8;
         PatchGrid {
             w,
