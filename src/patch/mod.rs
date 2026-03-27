@@ -70,27 +70,53 @@ impl<S: State<Gen> + Copy, Gen: Generation, E: Effectors> Crystal<S, Gen, E> {
         }
     }
 
-    fn update_all(&self, generation: &Gen) -> Result<()> {
-        // let next_generation = generation.successor();
+    fn update_all(&mut self, generation: &Gen) -> Result<()> {
         let patches = &self.generations[generation];
+        let mut updated_patches = Vec::new();
         debug!("Number of patches: [{generation:?}]: {}", patches.len());
-        for patch_ref in patches {
-            let patch = patch_ref.borrow();
+        for patch_index in 0..patches.len() {
+            let patch_ref = &patches[patch_index];
+            let mut patch = patch_ref.borrow_mut();
+            self.stitch(&mut patch, generation);
+            let mut updated_patch = Patch::new_init(patch.cells[0], patch_index);
             debug!("Patch size: {}", patch.size);
             for i in 0..patch.size {
                 let location = LocationInPatch {
                     index: i,
                     patch: patch.index,
                 };
-                let new_state = S::update(self, patch_ref, &location, generation)?;
-                debug!("New state: {new_state:?}")
+                if self.patch_links[patch_index]
+                    .effectors
+                    .iter(i)
+                    .next()
+                    .is_some()
+                {
+                    let new_state = S::update(self, patch_ref, &location, generation)?;
+                    updated_patch.cells[i as usize] = new_state;
+                }
             }
+            updated_patches.push(Rc::new(RefCell::new(updated_patch)));
         }
+        let next_generation = generation.successor();
+        self.generations.insert(next_generation, updated_patches);
         Ok(())
     }
 
     pub fn patch_count(&self) -> usize {
         self.patch_links.len()
+    }
+
+    fn stitch(&self, patch: &mut Patch<S, Gen>, generation: &Gen) {
+        if let Some(patches) = self.generations.get(generation) {
+            let edges = &self.patch_links[patch.index].edges;
+            for i in 0..patch.size {
+                if let Some((other_index, j)) = edges.get(&i) {
+                    let other = patches[*other_index].borrow();
+                    let state = other.cells[*j as usize];
+                    patch.cells[i as usize] = state;
+                }
+            }
+        }
     }
 }
 
@@ -192,13 +218,13 @@ where
                 patch: self.patch,
             })
             .collect::<Vec<Self>>();
-        debug!(
-            "Effectors: [{}]: [{}]: [{}]: {:?}.",
-            self.patch,
-            self.index,
-            cell_effectors.len(),
-            cell_effectors.iter().map(|l| l.index).collect::<Vec<u8>>()
-        );
+        // debug!(
+        //     "Effectors: [{}]: [{}]: [{}]: {:?}.",
+        //     self.patch,
+        //     self.index,
+        //     cell_effectors.len(),
+        //     cell_effectors.iter().map(|l| l.index).collect::<Vec<u8>>()
+        // );
         Ok(cell_effectors)
     }
 

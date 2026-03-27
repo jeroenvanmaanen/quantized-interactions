@@ -60,10 +60,10 @@ impl State<usize> for Trivial {
 
 pub fn example() -> Result<()> {
     info!("Patch PoC");
-    let crystal = new_hexagonal_torus(Trivial::default(), 0usize, 40, 30)?;
+    let mut crystal = new_hexagonal_torus(Trivial::default(), 0usize, 40, 30)?;
     let generation = 0usize;
-    crystal.update_all(&generation)?;
     crystal.info(&generation);
+    crystal.update_all(&generation)?;
 
     Ok(())
 }

@@ -122,7 +122,7 @@ pub fn example(size: usize, export_dir: Option<&PathBuf>) -> Result<()> {
     let width = size;
     let height = size;
     let mut generation = 0usize;
-    let torus = new_cell_torus(
+    let mut torus = new_cell_torus(
         Tiling::Hexagons,
         &[height, width],
         generation.clone(),
@@ -131,8 +131,7 @@ pub fn example(size: usize, export_dir: Option<&PathBuf>) -> Result<()> {
             Wave::new(0.0, c)
         },
     )?;
-    let torus = &torus;
-    let grayscale = as_grayscale(torus);
+    let torus = &mut torus;
     let region = CellRegion::default();
     // torus.info(&generation);
     for i in 1..=(size * 10) {
@@ -142,6 +141,7 @@ pub fn example(size: usize, export_dir: Option<&PathBuf>) -> Result<()> {
         let m = smallest_local_maximum(torus, &generation);
         info!("Smallest local maximum: [{generation}]: [{m}]");
         if i % size == 0 {
+            let grayscale = as_grayscale(torus);
             grayscale.export(&region, &generation, &m, export_dir)?;
         }
     }

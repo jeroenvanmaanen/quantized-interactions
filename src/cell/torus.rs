@@ -83,7 +83,7 @@ impl<S: State<Gen>, Gen: Generation> Torus<S, Gen> for CellTorus<S, Gen> {
         }
     }
 
-    fn update_all(&self, generation: &Gen) -> Result<()> {
+    fn update_all(&mut self, generation: &Gen) -> Result<()> {
         for cell in &self.cells {
             trace!("Update: [{:?}]", cell.id());
             let space = CellSpace;

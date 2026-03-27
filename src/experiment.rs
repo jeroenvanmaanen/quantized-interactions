@@ -92,7 +92,7 @@ fn symmetric(angle: f64) -> f64 {
 pub fn example() -> Result<()> {
     let dimensions = [5, 5, 5];
     let generation = 0usize;
-    let torus = new_cell_torus(
+    let mut torus = new_cell_torus(
         Tiling::Orthogonal,
         &dimensions,
         generation.clone(),

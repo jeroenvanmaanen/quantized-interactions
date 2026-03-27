@@ -59,7 +59,7 @@ pub fn example() -> Result<()> {
     let width = 5;
     let height = 5;
     let generation = 0usize;
-    let torus = new_cell_torus(
+    let mut torus = new_cell_torus(
         Tiling::OrthogonalAndDiagonal,
         &[width, height],
         generation.clone(),

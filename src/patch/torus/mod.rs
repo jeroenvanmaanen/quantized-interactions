@@ -22,7 +22,7 @@ pub struct PatchTorus<S: State<Gen> + Copy, Gen: Generation, E: Effectors> {
 impl<S: State<Gen> + Copy, Gen: Generation> Torus<S, Gen>
     for PatchTorus<S, Gen, AtMostSixEffectors>
 {
-    fn update_all(&self, generation: &Gen) -> Result<()> {
+    fn update_all(&mut self, generation: &Gen) -> Result<()> {
         self.crystal.update_all(generation)
     }
 
