@@ -167,7 +167,7 @@ where
                 offsets = offsets.other();
             }
             let er = if h > 1 { 1 } else { 0 };
-            let mut iy = wc;
+            let mut iy = 0;
             for y in er..(hr - er) {
                 let ec = if w > 1 { 1 } else { 0 };
                 for x in ec..(wc - ec) {
