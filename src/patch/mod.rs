@@ -38,6 +38,9 @@ pub struct Crystal<S: State<Gen> + Copy, Gen: Generation, E: Effectors> {
 struct PatchLinks<E: Effectors> {
     edges: HashMap<u8, (usize, u8)>,
     effectors: E,
+    width: u8,
+    height: u8,
+    even: bool,
 }
 
 impl<S: State<Gen> + Copy, Gen: Generation, E: Effectors> Crystal<S, Gen, E> {
@@ -54,6 +57,9 @@ impl<S: State<Gen> + Copy, Gen: Generation, E: Effectors> Crystal<S, Gen, E> {
             patch_links.push(PatchLinks {
                 edges: HashMap::new(),
                 effectors: effector_factory(),
+                width: 0,
+                height: 0,
+                even: true,
             });
         }
         let mut generations = HashMap::new();

@@ -19,7 +19,9 @@ pub struct PatchTorus<S: State<Gen> + Copy, Gen: Generation, E: Effectors> {
     crystal: Crystal<S, Gen, E>,
 }
 
-impl<S: State<Gen> + Copy, Gen: Generation, E: Effectors> Torus<S, Gen> for PatchTorus<S, Gen, E> {
+impl<S: State<Gen> + Copy, Gen: Generation> Torus<S, Gen>
+    for PatchTorus<S, Gen, AtMostSixEffectors>
+{
     fn update_all(&self, generation: &Gen) -> Result<()> {
         self.crystal.update_all(generation)
     }
@@ -144,9 +146,12 @@ where
         let hr = patch_grid.row_height(r); // Height of this row
         let mut cell_colums_before = 0;
         for c in 0..w {
+            let p = br + c;
             let wc = patch_grid.column_width(c); // Width of this column
             let even = (cell_rows_before ^ cell_colums_before) & 0x01 == 0; // TODO: is this correct?
-            let p = br + c;
+            crystal.patch_links[p].width = wc;
+            crystal.patch_links[p].height = hr;
+            crystal.patch_links[p].even = even;
             debug!(
                 "Patch: #{p}: [{r}]: [{c}]: ([{wc}] x [{hr}]): [{cell_colums_before}, {cell_rows_before}, {even}]"
             );
@@ -201,8 +206,8 @@ where
                     let right = (c + 1) % w;
                     let fudge = if r > 1 { 1 } else { 0 };
                     for i in fudge..(hr - fudge) {
-                        edges.insert(i, (row + left, left_base + (i * wc))); // top to bottom of above
-                        edges.insert(this_base + i, (row + right, this_base + (i * wc))); // bottom to top of below
+                        edges.insert(i * wc, (row + left, left_base + (i * wc))); // top to bottom of above
+                        edges.insert(this_base + (i * wc), (row + right, this_base + (i * wc))); // bottom to top of below
                     }
                     if r > 1 {
                         // Insert corners
