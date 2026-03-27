@@ -12,6 +12,10 @@ use log::info;
 #[derive(Default, Debug, Clone, Copy)]
 struct Trivial;
 
+struct TrivialPatch<Gen: Generation> {
+    generation: Gen,
+}
+
 impl Display for Trivial {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str("Trivial")
@@ -33,12 +37,16 @@ where
     }
 }
 
-impl<Spc: Space<Trivial, usize>> Region<Spc, Trivial, usize> for () {
+impl<Spc: Space<Trivial, usize>> Region<Spc, Trivial, usize> for TrivialPatch<usize> {
     fn locations(&self) -> impl IntoIterator<Item = Spc::Loc> {
         HashSet::new()
     }
 
-    fn state(&self, _location: &Spc::Loc, _generation: &usize) -> Option<Trivial> {
+    fn generation(&self) -> usize {
+        self.generation
+    }
+
+    fn state(&self, _location: &Spc::Loc) -> Option<Trivial> {
         None
     }
 }
@@ -48,7 +56,6 @@ impl State<usize> for Trivial {
         space: &Spc,
         _region: &Spc::Reg,
         location: &Spc::Loc,
-        _generation: &usize,
     ) -> Result<Self> {
         let count = location.effectors(space)?.into_iter().count();
         if count != 6 && count != 0 {

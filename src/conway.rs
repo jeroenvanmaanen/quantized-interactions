@@ -26,17 +26,16 @@ impl State<usize> for Conway {
         space: &Spc,
         region: &Spc::Reg,
         location: &Spc::Loc,
-        generation: &usize,
     ) -> Result<Self> {
         trace!("Update: [{}]", location.id());
-        let this_state = (region.state(location, generation) as Option<Self>)
+        let this_state = (region.state(location) as Option<Self>)
             .map(|s| s.alive)
             .unwrap_or(false);
         trace!("This state: [{this_state:?}]");
         let mut count = 0;
         for effector in location.effectors(space)? {
             trace!("Effector: [{}]", effector.id());
-            if let Some(state) = region.state(&effector, generation) as Option<Self> {
+            if let Some(state) = region.state(&effector) as Option<Self> {
                 if state.alive {
                     count += 1;
                 }

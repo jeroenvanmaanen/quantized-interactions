@@ -10,7 +10,8 @@ pub trait Generation: Hash + Eq + PartialEq + Debug + Clone {
 
 pub trait Region<Spc: Space<S, Gen> + ?Sized, S: State<Gen>, Gen: Generation>: Sized {
     fn locations(&self) -> impl IntoIterator<Item = Spc::Loc>;
-    fn state(&self, location: &Spc::Loc, generation: &Gen) -> Option<S>;
+    fn generation(&self) -> Gen;
+    fn state(&self, location: &Spc::Loc) -> Option<S>;
 }
 
 pub trait Space<S: State<Gen>, Gen: Generation> {
@@ -43,7 +44,6 @@ pub trait State<Gen: Generation>: Debug + Clone + Display {
         space: &Spc,
         region: &Spc::Reg,
         location: &Spc::Loc,
-        generation: &Gen,
     ) -> Result<Self>;
 }
 

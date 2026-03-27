@@ -25,20 +25,20 @@ where
 {
     _space: PhantomData<Spc>,
     _state: PhantomData<S>,
-    _generation: PhantomData<Gen>,
+    generation: Gen,
 }
 
-impl<Spc, S, Gen> Default for CellRegion<Spc, S, Gen>
+impl<Spc, S, Gen> CellRegion<Spc, S, Gen>
 where
     Spc: Space<S, Gen>,
     S: State<Gen>,
     Gen: Generation,
 {
-    fn default() -> Self {
+    pub fn new(generation: Gen) -> Self {
         Self {
             _space: Default::default(),
             _state: Default::default(),
-            _generation: Default::default(),
+            generation,
         }
     }
 }
@@ -50,12 +50,8 @@ impl<S: State<Gen>, Gen: Generation> Space<S, Gen> for CellSpace {
     type Reg = CellRegion<Self, S, Gen>;
     type Loc = Cell<S, Gen>;
 
-    fn regions(&self, _generation: &Gen) -> impl IntoIterator<Item = Self::Reg> {
-        let region: Self::Reg = CellRegion {
-            _space: PhantomData,
-            _state: PhantomData,
-            _generation: PhantomData,
-        };
+    fn regions(&self, generation: &Gen) -> impl IntoIterator<Item = Self::Reg> {
+        let region: Self::Reg = CellRegion::new(generation.clone());
         [region]
     }
 }
@@ -70,8 +66,12 @@ where
         HashSet::new()
     }
 
-    fn state(&self, location: &Spc::Loc, generation: &Gen) -> Option<S> {
-        location.state::<Spc>(self, generation)
+    fn generation(&self) -> Gen {
+        self.generation.clone()
+    }
+
+    fn state(&self, location: &Spc::Loc) -> Option<S> {
+        location.state::<Spc>(self, &self.generation)
     }
 }
 
@@ -154,12 +154,8 @@ impl<S: State<Gen>, Gen: Generation> Cell<S, Gen> {
         if self.has_state(&next_gen) {
             return Ok(());
         }
-        let region = CellRegion {
-            _space: PhantomData,
-            _state: PhantomData,
-            _generation: PhantomData,
-        };
-        let new_state = S::update(space, &region, self, &generation)?;
+        let region = CellRegion::new(generation.clone());
+        let new_state = S::update(space, &region, self)?;
         let mut guard = self
             .0
             .state_map

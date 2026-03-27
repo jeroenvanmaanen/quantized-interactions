@@ -23,7 +23,7 @@ pub use poc::example as poc_example;
 pub use torus::new_hexagonal_torus;
 
 use anyhow::{Result, anyhow};
-use std::{cell::RefCell, collections::HashMap, marker::PhantomData, ops::Range, rc::Rc};
+use std::{cell::RefCell, collections::HashMap, ops::Range, rc::Rc};
 
 use crate::structure::{Generation, Location, Region, Space, State};
 
@@ -53,7 +53,8 @@ impl<S: State<Gen> + Copy, Gen: Generation, E: Effectors> Crystal<S, Gen, E> {
         let mut patches = Vec::new();
         let mut patch_links = Vec::new();
         for index in 0..patch_count {
-            patches.push(Rc::new(RefCell::new(Patch::new_init(init, index))));
+            let new_patch = Patch::new_init(init, index, generation.clone());
+            patches.push(Rc::new(RefCell::new(new_patch)));
             patch_links.push(PatchLinks {
                 edges: HashMap::new(),
                 effectors: effector_factory(),
@@ -78,7 +79,8 @@ impl<S: State<Gen> + Copy, Gen: Generation, E: Effectors> Crystal<S, Gen, E> {
             let patch_ref = &patches[patch_index];
             let mut patch = patch_ref.borrow_mut();
             self.stitch(&mut patch, generation);
-            let mut updated_patch = Patch::new_init(patch.cells[0], patch_index);
+            let mut updated_patch =
+                Patch::new_init(patch.cells[0], patch_index, generation.clone());
             debug!("Patch size: {}", patch.size);
             for i in 0..patch.size {
                 let location = LocationInPatch {
@@ -91,7 +93,7 @@ impl<S: State<Gen> + Copy, Gen: Generation, E: Effectors> Crystal<S, Gen, E> {
                     .next()
                     .is_some()
                 {
-                    let new_state = S::update(self, patch_ref, &location, generation)?;
+                    let new_state = S::update(self, patch_ref, &location)?;
                     updated_patch.cells[i as usize] = new_state;
                 }
             }
@@ -152,8 +154,8 @@ pub struct Patch<S: State<Gen> + Copy, Gen: Generation> {
     cell_patch: [u8; PATCH_SIZE as usize],
     cell_index: [u8; PATCH_SIZE as usize],
     index: usize,
+    generation: Gen,
     size: u8,
-    _phantom: PhantomData<Gen>,
 }
 
 impl<S, Gen> Patch<S, Gen>
@@ -161,14 +163,14 @@ where
     S: State<Gen> + Copy,
     Gen: Generation,
 {
-    pub fn new_init(init: S, index: usize) -> Self {
+    pub fn new_init(init: S, index: usize, generation: Gen) -> Self {
         Patch {
             cells: [init; PATCH_SIZE as usize],
             cell_patch: [0xFF; PATCH_SIZE as usize],
             cell_index: [0; PATCH_SIZE as usize],
             index,
+            generation,
             size: 0,
-            _phantom: PhantomData,
         }
     }
 }
@@ -187,7 +189,11 @@ where
         }
     }
 
-    fn state(&self, location: &Spc::Loc, _generation: &Gen) -> Option<S> {
+    fn generation(&self) -> Gen {
+        self.borrow().generation.clone()
+    }
+
+    fn state(&self, location: &Spc::Loc) -> Option<S> {
         let i = location.index;
         let region = self.borrow();
         if i < region.size {

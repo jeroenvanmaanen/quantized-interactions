@@ -101,8 +101,8 @@ where
     type Reg = CellRegion<Self, S, Gen>;
     type Loc = Cell<S, Gen>;
 
-    fn regions(&self, _generation: &Gen) -> impl IntoIterator<Item = Self::Reg> {
-        let region = CellRegion::default();
+    fn regions(&self, generation: &Gen) -> impl IntoIterator<Item = Self::Reg> {
+        let region = CellRegion::new(generation.clone());
         [region]
     }
 }
@@ -352,10 +352,10 @@ fn line_to_string<S: State<Gen>, Gen: Generation>(
     prefix: &str,
     sep: &str,
 ) -> String {
-    let region: CellRegion<CellSpace, S, Gen> = CellRegion::default();
+    let region: CellRegion<CellSpace, S, Gen> = CellRegion::new(generation.clone());
     let mut line = prefix.to_string();
     for x in 0..width {
-        let s = (region.state(&cells[(x + offset) % width], generation) as Option<S>)
+        let s = (region.state(&cells[(x + offset) % width]) as Option<S>)
             .map(|s| format!("{s}"))
             .unwrap_or("?".to_string());
         line.push_str(&s);
@@ -381,13 +381,13 @@ where
     let width = torus.dimensions[1];
     let mut img = GrayImage::new((width * 4 + 2) as u32, (height * 3 + 1) as u32);
 
-    let region: CellRegion<CellTorus<S, Gen>, S, Gen> = CellRegion::default();
+    let region: CellRegion<CellTorus<S, Gen>, S, Gen> = CellRegion::new(generation.clone());
     let mut offset = 0;
     for y in 0..height {
         let line = &torus.cells[offset..(offset + width)];
         let xs = if (y % 2) == 0 { 2 } else { 0 };
         for x in 0..width {
-            let gray = (region.state(&line[x], generation) as Option<S>)
+            let gray = (region.state(&line[x]) as Option<S>)
                 .map(|s| s.gray_value(context))
                 .unwrap_or(128);
             let luma = [gray];
