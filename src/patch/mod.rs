@@ -155,7 +155,7 @@ where
 
     fn update_all(&mut self, generation: &Gen) -> Result<()> {
         for patch in self.regions(generation) {
-            for loc in <Rc<RefCell<Patch<S, Gen>>> as Region<Self, S, Gen>>::locations(&patch) {
+            for loc in self.locations(&patch) {
                 let new_state = S::update(self, &patch, &loc)?;
                 let mut patch_borrow = patch.borrow_mut();
                 patch_borrow.cells[loc.index as usize] = new_state;

@@ -20,6 +20,10 @@ pub trait Space<S: State<Gen>, Gen: Generation> {
 
     fn regions(&self, generation: &Gen) -> impl IntoIterator<Item = Self::Reg>;
 
+    fn locations(&self, region: &Self::Reg) -> impl IntoIterator<Item = Self::Loc> {
+        region.locations()
+    }
+
     fn update_all(&mut self, generation: &Gen) -> Result<()>;
 
     fn reduce<A, F>(&self, generation: &Gen, init: A, f: F) -> A
