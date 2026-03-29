@@ -1,11 +1,12 @@
+pub mod grayscale;
 mod info;
 
 use anyhow::{Result, anyhow};
 use log::{debug, warn};
-use std::{collections::HashMap, rc::Rc};
+use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 use crate::{
-    patch::{AtMostSixEffectors, Effectors, PATCH_SIZE, PatchLinks},
+    patch::{AtMostSixEffectors, Effectors, LocationInPatch, PATCH_SIZE, Patch, PatchLinks},
     structure::{Generation, State},
     torus::{Tiling, Torus},
 };
@@ -16,7 +17,38 @@ use super::Crystal;
 pub struct PatchTorus<S: State<Gen> + Copy, Gen: Generation, PL: PatchLinks> {
     tiling: Tiling,
     dimensions: Vec<usize>,
+    patch_grid: Vec<usize>,
     crystal: Crystal<S, Gen, PL>,
+}
+
+impl<S: State<Gen> + Copy, Gen: Generation> PatchTorus<S, Gen, TorusPatchLinks> {
+    fn coordinates(
+        &self,
+        patch_ref: Rc<RefCell<Patch<S, Gen>>>,
+        location: &LocationInPatch,
+    ) -> (usize, usize) {
+        let patch = patch_ref.borrow();
+        let i = patch.index;
+        let w = self.patch_grid[0];
+        let r = i / w;
+        let c = i % w;
+        let patch_links = &self.crystal.patch_links;
+        let mut left_x = 0;
+        for p in 0..c {
+            left_x += patch_links[p].width as usize;
+        }
+        let mut top_y = 0;
+        let mut top_i = 0;
+        for _ in 0..r {
+            top_y += patch_links[top_i].height as usize;
+            top_i += w;
+        }
+        let pw = self.crystal.patch_links[i].width;
+        let li = location.index;
+        let ly = li / pw;
+        let lx = li % pw;
+        (left_x + lx as usize, top_y + ly as usize)
+    }
 }
 
 #[derive(Default)]
@@ -69,11 +101,13 @@ pub fn new_hexagonal_torus<S: State<Gen> + Copy, Gen: Generation>(
     let dimensions = vec![width, height];
     let patch_links_factory = || TorusPatchLinks::default();
     let (w, h) = calculate_grid(width, height);
+    let patch_grid = vec![w, h];
     let mut crystal = Crystal::new(w * h, &initial_gen, init, patch_links_factory);
     connect_cells_hexagonally(&mut crystal, width, w, height, h, &initial_gen)?;
     Ok(PatchTorus {
         crystal,
         dimensions,
+        patch_grid,
         tiling: Tiling::Hexagons,
     })
 }

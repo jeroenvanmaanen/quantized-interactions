@@ -41,13 +41,6 @@ pub trait PatchLinks {
     fn effectors(&self) -> &Self::Eff;
     fn edges(&self) -> &HashMap<u8, (usize, u8)>;
 }
-// struct PatchLinks<E: Effectors> {
-//     edges: HashMap<u8, (usize, u8)>,
-//     effectors: E,
-//     width: u8,
-//     height: u8,
-//     even: bool,
-// }
 
 impl<S, Gen, PL> Crystal<S, Gen, PL>
 where

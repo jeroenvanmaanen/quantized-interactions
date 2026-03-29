@@ -24,6 +24,10 @@ pub trait Space<S: State<Gen>, Gen: Generation> {
         region.locations()
     }
 
+    fn state(&self, region: &Self::Reg, location: &Self::Loc) -> Option<S> {
+        region.state(location)
+    }
+
     fn update_all(&mut self, generation: &Gen) -> Result<()>;
 
     fn reduce<A, F>(&self, generation: &Gen, init: A, f: F) -> A
