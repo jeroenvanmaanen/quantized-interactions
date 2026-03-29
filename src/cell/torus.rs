@@ -83,13 +83,8 @@ impl<S: State<Gen>, Gen: Generation> Torus<S, Gen> for CellTorus<S, Gen> {
         }
     }
 
-    fn update_all(&mut self, generation: &Gen) -> Result<()> {
-        for cell in &self.cells {
-            trace!("Update: [{:?}]", cell.id());
-            let space = CellSpace;
-            cell.update(&space, generation)?;
-        }
-        Ok(())
+    fn update_all_cells(&mut self, generation: &Gen) -> Result<()> {
+        self.update_all(generation)
     }
 }
 
@@ -104,6 +99,15 @@ where
     fn regions(&self, generation: &Gen) -> impl IntoIterator<Item = Self::Reg> {
         let region = CellRegion::new(generation.clone());
         [region]
+    }
+
+    fn update_all(&mut self, generation: &Gen) -> Result<()> {
+        for cell in &self.cells {
+            trace!("Update: [{:?}]", cell.id());
+            let space = CellSpace;
+            cell.update(&space, generation)?;
+        }
+        Ok(())
     }
 }
 

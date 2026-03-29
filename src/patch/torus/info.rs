@@ -3,13 +3,16 @@ use std::{collections::HashMap, iter::repeat};
 use log::info;
 
 use crate::{
-    patch::{AtMostSixEffectors, Effectors},
+    patch::{
+        AtMostSixEffectors, Effectors,
+        torus::{PatchLinks, TorusPatchLinks},
+    },
     structure::{Generation, State},
 };
 
 use super::PatchTorus;
 
-pub fn info_hexagons<S, Gen>(torus: &PatchTorus<S, Gen, AtMostSixEffectors>)
+pub fn info_hexagons<S, Gen>(torus: &PatchTorus<S, Gen, TorusPatchLinks>)
 where
     S: State<Gen> + Copy,
     Gen: Generation,
@@ -28,7 +31,7 @@ where
             ]
         };
         info_hexagon(
-            &patch_links.edges,
+            patch_links.edges(),
             3,
             &projections,
             patch_links.width,
@@ -46,7 +49,7 @@ where
             result
         };
         info_hexagon(
-            &patch_links.effectors,
+            patch_links.effectors(),
             7,
             &projections,
             patch_links.width,

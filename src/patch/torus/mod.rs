@@ -2,10 +2,10 @@ mod info;
 
 use anyhow::{Result, anyhow};
 use log::{debug, warn};
-use std::rc::Rc;
+use std::{collections::HashMap, rc::Rc};
 
 use crate::{
-    patch::{AtMostSixEffectors, Effectors, PATCH_SIZE},
+    patch::{AtMostSixEffectors, Effectors, PATCH_SIZE, PatchLinks},
     structure::{Generation, State},
     torus::{Tiling, Torus},
 };
@@ -13,25 +13,44 @@ use info::info_hexagons;
 
 use super::Crystal;
 
-pub struct PatchTorus<S: State<Gen> + Copy, Gen: Generation, E: Effectors> {
+pub struct PatchTorus<S: State<Gen> + Copy, Gen: Generation, PL: PatchLinks> {
     tiling: Tiling,
     dimensions: Vec<usize>,
-    crystal: Crystal<S, Gen, E>,
+    crystal: Crystal<S, Gen, PL>,
 }
 
-impl<S: State<Gen> + Copy, Gen: Generation> Torus<S, Gen>
-    for PatchTorus<S, Gen, AtMostSixEffectors>
-{
-    fn update_all(&mut self, generation: &Gen) -> Result<()> {
-        self.crystal.update_all(generation)
+#[derive(Default)]
+pub struct TorusPatchLinks {
+    effectors: AtMostSixEffectors,
+    edges: HashMap<u8, (usize, u8)>,
+    width: u8,
+    height: u8,
+    even: bool,
+}
+
+impl PatchLinks for TorusPatchLinks {
+    type Eff = AtMostSixEffectors;
+
+    fn effectors(&self) -> &Self::Eff {
+        &self.effectors
     }
 
+    fn edges(&self) -> &std::collections::HashMap<u8, (usize, u8)> {
+        &self.edges
+    }
+}
+
+impl<S: State<Gen> + Copy, Gen: Generation> Torus<S, Gen> for PatchTorus<S, Gen, TorusPatchLinks> {
     fn info(&self, _generation: &Gen) {
         if self.tiling == Tiling::Hexagons {
             info_hexagons(self);
         } else {
             warn!("No info for tiling: [{:?}]", self.tiling)
         }
+    }
+
+    fn update_all_cells(&mut self, generation: &Gen) -> Result<()> {
+        self.crystal.update_all(generation)
     }
 }
 
@@ -43,14 +62,14 @@ pub fn new_hexagonal_torus<S: State<Gen> + Copy, Gen: Generation>(
     initial_gen: Gen,
     width: usize,
     height: usize,
-) -> Result<PatchTorus<S, Gen, AtMostSixEffectors>> {
+) -> Result<PatchTorus<S, Gen, TorusPatchLinks>> {
     if width % 2 == 1 || height % 2 == 1 {
         return Err(anyhow!("Must both be even: ({width}, {height})"));
     }
     let dimensions = vec![width, height];
-    let effector_factory = || AtMostSixEffectors::default();
+    let patch_links_factory = || TorusPatchLinks::default();
     let (w, h) = calculate_grid(width, height);
-    let mut crystal = Crystal::new(w * h, &initial_gen, init, effector_factory);
+    let mut crystal = Crystal::new(w * h, &initial_gen, init, patch_links_factory);
     connect_cells_hexagonally(&mut crystal, width, w, height, h, &initial_gen)?;
     Ok(PatchTorus {
         crystal,
@@ -117,8 +136,8 @@ fn calculate_footprint(long: usize, short: usize, s: usize) -> (usize, usize, us
     footprint
 }
 
-fn connect_cells_hexagonally<S, Gen, E>(
-    crystal: &mut Crystal<S, Gen, E>,
+fn connect_cells_hexagonally<S, Gen>(
+    crystal: &mut Crystal<S, Gen, TorusPatchLinks>,
     width: usize,
     w: usize,
     height: usize,
@@ -128,7 +147,6 @@ fn connect_cells_hexagonally<S, Gen, E>(
 where
     S: State<Gen> + Copy,
     Gen: Generation,
-    E: Effectors,
 {
     debug!(
         "Connect cells: [{}]: ([{width}] / [{w}]) x ([{height}] / [{h}])",

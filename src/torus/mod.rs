@@ -18,8 +18,8 @@ pub enum Tiling {
 }
 
 pub trait Torus<S: State<Gen>, Gen: Generation>: Sized {
-    fn update_all(&mut self, generation: &Gen) -> Result<()>;
     fn info(&self, generation: &Gen);
+    fn update_all_cells(&mut self, generation: &Gen) -> Result<()>;
 }
 
 pub trait GrayScaleTorus<Spc, S, Gen>: Torus<S, Gen>

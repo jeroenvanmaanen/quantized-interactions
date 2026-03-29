@@ -70,7 +70,7 @@ pub fn example() -> Result<()> {
     let mut crystal = new_hexagonal_torus(Trivial::default(), 0usize, 40, 30)?;
     let generation = 0usize;
     crystal.info(&generation);
-    crystal.update_all(&generation)?;
+    crystal.update_all_cells(&generation)?;
 
     Ok(())
 }

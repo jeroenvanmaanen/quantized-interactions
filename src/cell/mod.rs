@@ -54,6 +54,10 @@ impl<S: State<Gen>, Gen: Generation> Space<S, Gen> for CellSpace {
         let region: Self::Reg = CellRegion::new(generation.clone());
         [region]
     }
+
+    fn update_all(&mut self, _generation: &Gen) -> Result<()> {
+        Ok(())
+    }
 }
 
 impl<Spc, S, Gen> Region<Spc, S, Gen> for CellRegion<Spc, S, Gen>

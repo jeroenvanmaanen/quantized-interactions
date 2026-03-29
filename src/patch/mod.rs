@@ -30,38 +30,43 @@ use crate::structure::{Generation, Location, Region, Space, State};
 const PATCH_SIZE: u8 = 0xFF;
 const INTERNAL: u8 = 0xD * 0xD;
 
-pub struct Crystal<S: State<Gen> + Copy, Gen: Generation, E: Effectors> {
-    patch_links: Vec<PatchLinks<E>>,
+pub struct Crystal<S: State<Gen> + Copy, Gen: Generation, PL: PatchLinks> {
+    patch_links: Vec<PL>,
     generations: HashMap<Gen, Vec<Rc<RefCell<Patch<S, Gen>>>>>,
 }
 
-struct PatchLinks<E: Effectors> {
-    edges: HashMap<u8, (usize, u8)>,
-    effectors: E,
-    width: u8,
-    height: u8,
-    even: bool,
-}
+pub trait PatchLinks {
+    type Eff: Effectors;
 
-impl<S: State<Gen> + Copy, Gen: Generation, E: Effectors> Crystal<S, Gen, E> {
+    fn effectors(&self) -> &Self::Eff;
+    fn edges(&self) -> &HashMap<u8, (usize, u8)>;
+}
+// struct PatchLinks<E: Effectors> {
+//     edges: HashMap<u8, (usize, u8)>,
+//     effectors: E,
+//     width: u8,
+//     height: u8,
+//     even: bool,
+// }
+
+impl<S, Gen, PL> Crystal<S, Gen, PL>
+where
+    S: State<Gen> + Copy,
+    Gen: Generation,
+    PL: PatchLinks<Eff: Effectors>,
+{
     pub fn new(
         patch_count: usize,
         generation: &Gen,
         init: S,
-        effector_factory: impl Fn() -> E,
+        patch_links_factory: impl Fn() -> PL,
     ) -> Self {
         let mut patches = Vec::new();
         let mut patch_links = Vec::new();
         for index in 0..patch_count {
             let new_patch = Patch::new_init(init, index, generation.clone());
             patches.push(Rc::new(RefCell::new(new_patch)));
-            patch_links.push(PatchLinks {
-                edges: HashMap::new(),
-                effectors: effector_factory(),
-                width: 0,
-                height: 0,
-                even: true,
-            });
+            patch_links.push(patch_links_factory());
         }
         let mut generations = HashMap::new();
         generations.insert(generation.clone(), patches);
@@ -88,7 +93,7 @@ impl<S: State<Gen> + Copy, Gen: Generation, E: Effectors> Crystal<S, Gen, E> {
                     patch: patch.index,
                 };
                 if self.patch_links[patch_index]
-                    .effectors
+                    .effectors()
                     .iter(i)
                     .next()
                     .is_some()
@@ -110,7 +115,7 @@ impl<S: State<Gen> + Copy, Gen: Generation, E: Effectors> Crystal<S, Gen, E> {
 
     fn stitch(&self, patch: &mut Patch<S, Gen>, generation: &Gen) {
         if let Some(patches) = self.generations.get(generation) {
-            let edges = &self.patch_links[patch.index].edges;
+            let edges = &self.patch_links[patch.index].edges();
             for i in 0..patch.size {
                 if let Some((other_index, j)) = edges.get(&i) {
                     let other = patches[*other_index].borrow();
@@ -135,17 +140,28 @@ fn next_adjacent(map: &HashMap<u8, usize>) -> Result<u8> {
     }
 }
 
-impl<S, Gen, E> Space<S, Gen> for Crystal<S, Gen, E>
+impl<S, Gen, PL> Space<S, Gen> for Crystal<S, Gen, PL>
 where
     S: State<Gen> + Copy,
     Gen: Generation,
-    E: Effectors,
+    PL: PatchLinks,
 {
     type Reg = Rc<RefCell<Patch<S, Gen>>>;
     type Loc = LocationInPatch;
 
     fn regions(&self, generation: &Gen) -> impl IntoIterator<Item = Self::Reg> {
         self.generations[generation].clone()
+    }
+
+    fn update_all(&mut self, generation: &Gen) -> Result<()> {
+        for patch in self.regions(generation) {
+            for loc in <Rc<RefCell<Patch<S, Gen>>> as Region<Self, S, Gen>>::locations(&patch) {
+                let new_state = S::update(self, &patch, &loc)?;
+                let mut patch_borrow = patch.borrow_mut();
+                patch_borrow.cells[loc.index as usize] = new_state;
+            }
+        }
+        Ok(())
     }
 }
 
@@ -209,14 +225,14 @@ pub struct LocationInPatch {
     index: u8,
 }
 
-impl<S, Gen, E> Location<Crystal<S, Gen, E>, S, Gen> for LocationInPatch
+impl<S, Gen, PL> Location<Crystal<S, Gen, PL>, S, Gen> for LocationInPatch
 where
     S: State<Gen> + Copy,
     Gen: Generation,
-    E: Effectors,
+    PL: PatchLinks,
 {
-    fn effectors(&self, space: &Crystal<S, Gen, E>) -> Result<impl IntoIterator<Item = Self>> {
-        let patch_effectors = &space.patch_links[self.patch].effectors;
+    fn effectors(&self, space: &Crystal<S, Gen, PL>) -> Result<impl IntoIterator<Item = Self>> {
+        let patch_effectors = &space.patch_links[self.patch].effectors();
         let cell_effectors = patch_effectors
             .iter(self.index)
             .map(|i| LocationInPatch {
