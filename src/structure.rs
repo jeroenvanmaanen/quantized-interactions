@@ -8,7 +8,12 @@ pub trait Generation: Hash + Eq + PartialEq + Debug + Clone {
     fn successor(&self) -> Self;
 }
 
-pub trait Region<Spc: Space<S, Gen> + ?Sized, S: State<Gen>, Gen: Generation>: Sized {
+pub trait Region<Spc, S, Gen>: Debug + Sized
+where
+    Spc: Space<S, Gen> + ?Sized,
+    S: State<Gen>,
+    Gen: Generation,
+{
     fn locations(&self) -> impl IntoIterator<Item = Spc::Loc>;
     fn generation(&self) -> Gen;
     fn state(&self, location: &Spc::Loc) -> Option<S>;
@@ -36,7 +41,7 @@ pub trait Space<S: State<Gen>, Gen: Generation> {
     {
         let mut accumulator = init;
         for region in self.regions(generation) {
-            for location in region.locations() {
+            for location in self.locations(&region) {
                 accumulator = f(&region, &location, accumulator);
             }
         }

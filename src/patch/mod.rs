@@ -23,7 +23,7 @@ pub use poc::example as poc_example;
 pub use torus::new_hexagonal_torus;
 
 use anyhow::{Result, anyhow};
-use std::{cell::RefCell, collections::HashMap, ops::Range, rc::Rc};
+use std::{cell::RefCell, collections::HashMap, fmt::Debug, ops::Range, rc::Rc};
 
 use crate::structure::{Generation, Location, Region, Space, State};
 
@@ -109,7 +109,7 @@ where
     fn stitch(&self, patch: &mut Patch<S, Gen>, generation: &Gen) {
         if let Some(patches) = self.generations.get(generation) {
             let edges = &self.patch_links[patch.index].edges();
-            for i in 0..patch.size {
+            for i in patch.size..patch.total_size {
                 if let Some((other_index, j)) = edges.get(&i) {
                     let other = patches[*other_index].borrow();
                     let state = other.cells[*j as usize];
@@ -165,6 +165,7 @@ pub struct Patch<S: State<Gen> + Copy, Gen: Generation> {
     index: usize,
     generation: Gen,
     size: u8,
+    total_size: u8, // Includes edges
 }
 
 impl<S, Gen> Patch<S, Gen>
@@ -180,6 +181,7 @@ where
             index,
             generation,
             size: 0,
+            total_size: 0,
         }
     }
 }
@@ -213,6 +215,18 @@ where
     }
 }
 
+impl<S, Gen> Debug for Patch<S, Gen>
+where
+    S: State<Gen> + Copy,
+    Gen: Generation,
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Patch")
+            .field("generation", &self.generation)
+            .field("index", &self.index)
+            .finish()
+    }
+}
 pub struct LocationInPatch {
     patch: usize,
     index: u8,

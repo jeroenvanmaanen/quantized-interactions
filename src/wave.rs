@@ -96,7 +96,9 @@ impl Display for Wave {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         // let s = format!("{:5.2}", self.amplitude);
         // f.write_str(&s)?;
-        let c = if self.amplitude > 0.0 {
+        let c = if self.is_center {
+            'o'
+        } else if self.amplitude > 0.0 {
             '^'
         } else if self.amplitude < 0.0 {
             'v'

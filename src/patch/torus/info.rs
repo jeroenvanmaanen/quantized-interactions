@@ -5,7 +5,7 @@ use log::info;
 use crate::{
     patch::{
         AtMostSixEffectors, Effectors,
-        torus::{PatchLinks, TorusPatchLinks},
+        torus::{PatchLinks, TorusPatchLinks, calculate_grid, prepare_shuffle},
     },
     structure::{Generation, State},
 };
@@ -20,6 +20,11 @@ where
     info!("# Crystal hexagons info");
     info!("");
     let crystal = &torus.crystal;
+    let width = torus.dimensions[0];
+    let height = torus.dimensions[1];
+    let (w, h) = calculate_grid(width, height);
+    let wide = w > 1;
+    let tall = h > 1;
     for i in 0..crystal.patch_count() {
         let patch_links = &crystal.patch_links[i];
         info!("## Patch: {i}: edges");
@@ -34,14 +39,20 @@ where
             patch_links.edges(),
             3,
             &projections,
-            patch_links.width,
-            patch_links.height,
+            patch_links.total_width,
+            patch_links.total_height,
             patch_links.even,
         );
         info!("");
         info!("## Patch: {i}: effectors");
+        let shuffle = prepare_shuffle(
+            patch_links.total_width,
+            patch_links.total_height,
+            wide,
+            tall,
+        );
         let projections = |e: &AtMostSixEffectors, x, y, w| {
-            let index = index(x, y, w);
+            let index = shuffle(index(x, y, w));
             let mut result = vec![index];
             for effector in e.iter(index) {
                 result.push(effector);
@@ -52,8 +63,8 @@ where
             patch_links.effectors(),
             7,
             &projections,
-            patch_links.width,
-            patch_links.height,
+            patch_links.total_width,
+            patch_links.total_height,
             patch_links.even,
         );
         info!("");

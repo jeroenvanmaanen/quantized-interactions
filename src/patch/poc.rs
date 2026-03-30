@@ -12,6 +12,7 @@ use log::info;
 #[derive(Default, Debug, Clone, Copy)]
 struct Trivial;
 
+#[derive(Debug)]
 struct TrivialPatch<Gen: Generation> {
     generation: Gen,
 }

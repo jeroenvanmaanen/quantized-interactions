@@ -1,4 +1,3 @@
-pub mod grayscale;
 mod info;
 
 use anyhow::{Result, anyhow};
@@ -21,42 +20,14 @@ pub struct PatchTorus<S: State<Gen> + Copy, Gen: Generation, PL: PatchLinks> {
     crystal: Crystal<S, Gen, PL>,
 }
 
-impl<S: State<Gen> + Copy, Gen: Generation> PatchTorus<S, Gen, TorusPatchLinks> {
-    fn coordinates(
-        &self,
-        patch_ref: Rc<RefCell<Patch<S, Gen>>>,
-        location: &LocationInPatch,
-    ) -> (usize, usize) {
-        let patch = patch_ref.borrow();
-        let i = patch.index;
-        let w = self.patch_grid[0];
-        let r = i / w;
-        let c = i % w;
-        let patch_links = &self.crystal.patch_links;
-        let mut left_x = 0;
-        for p in 0..c {
-            left_x += patch_links[p].width as usize;
-        }
-        let mut top_y = 0;
-        let mut top_i = 0;
-        for _ in 0..r {
-            top_y += patch_links[top_i].height as usize;
-            top_i += w;
-        }
-        let pw = self.crystal.patch_links[i].width;
-        let li = location.index;
-        let ly = li / pw;
-        let lx = li % pw;
-        (left_x + lx as usize, top_y + ly as usize)
-    }
-}
-
 #[derive(Default)]
 pub struct TorusPatchLinks {
     effectors: AtMostSixEffectors,
     edges: HashMap<u8, (usize, u8)>,
-    width: u8,
-    height: u8,
+    total_width: u8,
+    total_height: u8,
+    inner_width: u8,
+    inner_height: u8,
     even: bool,
 }
 
@@ -73,6 +44,12 @@ impl PatchLinks for TorusPatchLinks {
 }
 
 impl<S: State<Gen> + Copy, Gen: Generation> Torus<S, Gen> for PatchTorus<S, Gen, TorusPatchLinks> {
+    type Spc = Crystal<S, Gen, TorusPatchLinks>;
+
+    fn space(&self) -> &Self::Spc {
+        &self.crystal
+    }
+
     fn info(&self, _generation: &Gen) {
         if self.tiling == Tiling::Hexagons {
             info_hexagons(self);
@@ -83,6 +60,42 @@ impl<S: State<Gen> + Copy, Gen: Generation> Torus<S, Gen> for PatchTorus<S, Gen,
 
     fn update_all_cells(&mut self, generation: &Gen) -> Result<()> {
         self.crystal.update_all(generation)
+    }
+
+    fn tiling(&self) -> Tiling {
+        self.tiling
+    }
+
+    fn dimensions(&self) -> Vec<usize> {
+        self.dimensions.clone()
+    }
+
+    fn coordinates(
+        &self,
+        patch_ref: &Rc<RefCell<Patch<S, Gen>>>,
+        location: &LocationInPatch,
+    ) -> (usize, usize) {
+        let patch_links = &self.crystal.patch_links;
+        let patch = patch_ref.borrow();
+        let i = patch.index;
+        let w = self.patch_grid[0];
+        let r = i / w;
+        let c = i % w;
+        let mut left_x = 0;
+        for p in 0..c {
+            left_x += patch_links[p].inner_width as usize;
+        }
+        let mut top_y = 0;
+        let mut top_i = 0;
+        for _ in 0..r {
+            top_y += patch_links[top_i].inner_height as usize;
+            top_i += w;
+        }
+        let pw = patch_links[i].inner_width;
+        let li = location.index;
+        let ly = li / pw;
+        let lx = li % pw;
+        (left_x + lx as usize, top_y + ly as usize)
     }
 }
 
@@ -200,20 +213,30 @@ where
         for c in 0..w {
             let p = br + c;
             let wc = patch_grid.column_width(c); // Width of this column
+            let wi = patch_grid.internal_column_width(c);
+            let hi = patch_grid.internal_row_height(r);
+            let internal_size = wi * hi;
             let even = (cell_rows_before ^ cell_colums_before) & 0x01 == 0; // TODO: is this correct?
-            crystal.patch_links[p].width = wc;
-            crystal.patch_links[p].height = hr;
-            crystal.patch_links[p].even = even;
+            let patch_links = &mut crystal.patch_links[p];
+            patch_links.total_width = wc;
+            patch_links.total_height = hr;
+            patch_links.inner_width = wi;
+            patch_links.inner_height = hi;
+            patch_links.even = even;
             debug!(
                 "Patch: #{p}: [{r}]: [{c}]: ([{wc}] x [{hr}]): [{cell_colums_before}, {cell_rows_before}, {even}]"
             );
             if let Some(patches) = crystal.generations.get_mut(generation) {
-                if let Some(patch) = patches.get_mut(p) {
-                    patch.borrow_mut().size = wc * hr;
+                if let Some(patch_ref) = patches.get_mut(p) {
+                    let mut patch = patch_ref.borrow_mut();
+                    patch.size = internal_size;
+                    patch.total_size = wc * hr;
                 }
             }
 
-            let effectors = &mut crystal.patch_links[p].effectors;
+            let shuffle = prepare_shuffle(wc, hr, w > 1, h > 1);
+
+            let effectors = &mut patch_links.effectors;
             let mut offsets = even_offsets.clone();
             if !even {
                 offsets = offsets.other();
@@ -228,7 +251,7 @@ where
                         let xx = (x + ox + wc - 1) % wc;
                         let yy = (y + oy + hr - 1) % hr;
                         let j = (yy * wc) + xx;
-                        effectors.add(i, j)?;
+                        effectors.add(shuffle(i), shuffle(j))?;
                     }
                 }
                 offsets = offsets.other();
@@ -237,46 +260,47 @@ where
             effectors.debug(format!("{p}"));
             cell_colums_before += wc;
 
-            let edges = &mut crystal.patch_links[p].edges;
+            let edges = &mut patch_links.edges;
             if h > 1 {
                 let this_base = (hr - 1) * wc;
                 let above = (r + h - 1) % h;
-                let above_base = (patch_grid.row_height(above) - 2) * wc;
+                let above_base = (patch_grid.internal_row_height(above) - 1) * wi;
                 let below = (r + 1) % h;
                 let fudge = if w > 1 { 1 } else { 0 };
                 for i in fudge..(wc - fudge) {
-                    edges.insert(i, (above * w + c, above_base + i)); // top to bottom of above
-                    edges.insert(this_base + i, (below * w + c, wc + i)); // bottom to top of below
+                    edges.insert(shuffle(i), (above * w + c, above_base + i - fudge)); // top to bottom of above
+                    edges.insert(shuffle(this_base + i), (below * w + c, i - fudge)); // bottom to top of below
                 }
             }
             if w > 1 {
                 let row = r * w;
                 let this_base = wc - 1;
                 let left = (c + w - 1) % w;
-                let left_width = patch_grid.column_width(left);
+                let left_width = patch_grid.internal_column_width(left);
                 let right = (c + 1) % w;
-                let right_base = patch_grid.column_width(right);
+                let right_width = patch_grid.internal_column_width(right);
                 let fudge = if h > 1 { 1 } else { 0 };
                 for i in fudge..(hr - fudge) {
-                    edges.insert(i * wc, (row + left, ((i + 1) * left_width) - 2)); // leftmost cell to rightmost cell of patch to the left
-                    edges.insert(this_base + (i * wc), (row + right, (i * right_base) + 1)); // rightmost cell to leftmost cell of patch to the right
+                    edges.insert(
+                        shuffle(i * wc),
+                        (row + left, ((i + 1 - fudge) * left_width) - 1),
+                    ); // leftmost cell to rightmost cell of patch to the left
+                    edges.insert(
+                        shuffle(this_base + (i * wc)),
+                        (row + right, (i - fudge) * right_width),
+                    ); // rightmost cell to leftmost cell of patch to the right
                 }
                 if h > 1 {
                     // Insert corners
                     let above = (r + h - 1) % h;
                     let lft = (c + w - 1) % w;
-                    let lft_wc = patch_grid.column_width(lft);
                     let right = (c + 1) % w;
                     let below = (r + 1) % h;
 
-                    let top_lft_remote_index = patch_grid.bot_row_base(above, lft) + lft_wc - 2;
-                    edges.insert(0, (above * w + lft, top_lft_remote_index));
-                    let top_right_remote_index = patch_grid.bot_row_base(above, right) + 1;
-                    edges.insert(wc - 1, (above * w + right, top_right_remote_index));
-                    let bot_lft_remote_index = patch_grid.top_row_base(c) + lft_wc - 2;
-                    edges.insert((hr - 1) * wc, (below * w + lft, bot_lft_remote_index));
-                    let bot_right_remote_index = patch_grid.top_row_base(c) + 1;
-                    edges.insert(hr * wc - 1, (below * w + right, bot_right_remote_index));
+                    edges.insert(shuffle(0), (above * w + lft, internal_size - 1));
+                    edges.insert(shuffle(wc - 1), (above * w + right, internal_size - wi));
+                    edges.insert(shuffle((hr - 1) * wc), (below * w + lft, wi - 1));
+                    edges.insert(shuffle(hr * wc - 1), (below * w + right, 0));
                 }
             }
         }
@@ -286,55 +310,121 @@ where
     Ok(())
 }
 
+/// If the grid is wide (more than one patch in the x-direction) as well as tall (more than one patch in the y-direction),
+/// then a two by two patch has edges on both sides as well as corners. It is shuffled as follows:
+///
+/// Original:
+/// ```
+/// |  0 |  1 |  2 |  3 |
+/// |  4 |  5 |  6 |  7 |
+/// |  8 |  9 | 10 | 11 |
+/// | 12 | 13 | 14 | 15 |
+/// ```
+///
+/// Shuffled
+/// ```
+/// |  5 |  6 |            First row
+/// |  9 | 10 |            Last row
+/// |  0 |  1 |  2 |  3 |  Top edge
+/// | 12 | 13 | 14 | 15 |  Bottom edge
+/// |  4 |  8 |            Left edge, minus corners
+/// |  7 | 11 |            Right edge, minus corners
+/// ```
+fn prepare_shuffle(wc: u8, hr: u8, wide: bool, tall: bool) -> impl Fn(u8) -> u8 {
+    let p_size = hr * wc;
+    let mut shuffle = [0u8; PATCH_SIZE as usize];
+    let mut y_start = 0;
+    let mut y_end = p_size;
+    let mut x_start = 0;
+    let mut x_end = wc;
+    if tall {
+        y_start = wc;
+        y_end = p_size - wc;
+    }
+    if wide {
+        x_start = 1;
+        x_end -= 1;
+    }
+    let mut i = 0;
+    while y_start < y_end {
+        for x in x_start..x_end {
+            shuffle[(y_start + x) as usize] = i;
+            i = i + 1;
+        }
+        y_start += wc;
+    }
+    if tall {
+        for x in 0..wc {
+            shuffle[x as usize] = i;
+            i += 1;
+        }
+        for x in 0..wc {
+            shuffle[(y_end + x) as usize] = i;
+            i += 1;
+        }
+    }
+    if wide {
+        let fy = if tall { 1 } else { 0 };
+        for y in (fy)..(hr - fy) {
+            shuffle[(y * wc) as usize] = i;
+            i += 1;
+        }
+        for y in (fy)..(hr - fy) {
+            shuffle[(y * wc + wc - 1) as usize] = i;
+            i += 1;
+        }
+    }
+    assert!(i == p_size);
+    move |i| shuffle[i as usize]
+}
+
 struct PatchGrid {
     w: usize,  // Number of patches horizontally
+    wi: u8,    // Base internal width of patches
     wp: u8,    // Base width of patches
     wq: usize, // Number of patch columns that are one cell wider
     h: usize,  // Number of patches vertically
+    hi: u8,    // Base internal height of patches
     hp: u8,    // Base height of patches
     hq: usize, // Number of patch rows that are one cell wider
 }
 
 impl PatchGrid {
     fn new(width: usize, w: usize, height: usize, h: usize) -> Self {
-        let mut wp = width / w; // With of a small patch
-        let wq = width - w * (wp as usize); // Number of collums that are one cell wider
-        if w > 1 {
-            wp += 2; // Add width for edges
-        }
+        let wi = (width / w) as u8; // With of a small patch
+        let wq = width - w * (wi as usize); // Number of collums that are one cell wider
+        let wp = if w > 1 { wi + 2 } else { wi };
         let wp = wp as u8;
-        let mut hp = height / h + (if h > 1 { 2 } else { 0 }); // Height of a small patch
-        let hq = height - h * hp; // Number of rows that are one cell taller
-        if h > 1 {
-            hp += 2; // Add height for edges
-        }
+        let hi = (height / h) as u8; // Height of a small patch
+        let hq = height - h * (hi as usize); // Number of rows that are one cell taller
+        let hp = if h > 1 { hi + 2 } else { hi };
         let hp = hp as u8;
         PatchGrid {
             w,
+            wi,
             wp,
             wq,
             h,
+            hi,
             hp,
             hq,
         }
+    }
+
+    fn internal_row_height(&self, r: usize) -> u8 {
+        self.hi + (if r < self.hq { 1 } else { 0 })
     }
 
     fn row_height(&self, r: usize) -> u8 {
         self.hp + (if r < self.hq { 1 } else { 0 })
     }
 
+    fn internal_column_width(&self, c: usize) -> u8 {
+        self.wi + (if c < self.wq { 1 } else { 0 })
+    }
+
     fn column_width(&self, c: usize) -> u8 {
         self.wp + (if c < self.wq { 1 } else { 0 })
-    }
-
-    fn top_row_base(&self, c: usize) -> u8 {
-        self.column_width(c)
-    }
-
-    fn bot_row_base(&self, r: usize, c: usize) -> u8 {
-        let hr = self.row_height(r);
-        let wc = self.column_width(c);
-        (hr - 2) * wc
     }
 }
 

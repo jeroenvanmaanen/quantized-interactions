@@ -1,12 +1,12 @@
 use crate::{
-    cell::new_cell_torus,
+    cell::{Cell, new_cell_torus},
     structure::{Generation, Location, Region, Space, State},
     torus::{Tiling, Torus},
 };
 use anyhow::Result;
 // use log::debug;
 // use log::info;
-use log::trace;
+use log::{debug, trace};
 use std::{
     f64::consts::PI,
     fmt::{Display, Write},
@@ -89,6 +89,8 @@ fn symmetric(angle: f64) -> f64 {
 }
 
 pub fn example() -> Result<()> {
+    let cell = Cell::new(0usize, Rotate::new(0.0));
+    debug!("Bare cell: [{:?}]", cell);
     let dimensions = [5, 5, 5];
     let generation = 0usize;
     let mut torus = new_cell_torus(

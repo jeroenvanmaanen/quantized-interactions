@@ -1,17 +1,11 @@
-use std::{
-    fs::{OpenOptions, create_dir_all},
-    path::PathBuf,
-};
-
 use anyhow::{Result, anyhow};
-use image::{GrayImage, Luma};
 use log::{debug, info, trace};
 
 use crate::{
     cell::{Cell, CellRegion, CellSpace, Generation, Region, State},
-    structure::{GrayScale, Space},
+    structure::Space,
     torus::{
-        GrayScaleTorus, Tiling, Torus,
+        Tiling, Torus,
         utils::{get_index, next_co_ordinates},
     },
 };
@@ -43,6 +37,7 @@ where
         &mut cells,
         &initial_gen,
         &initial_state,
+        0,
     );
     debug!("Torus: Number of cells: [{}]", cells.len());
 
@@ -63,6 +58,12 @@ where
 }
 
 impl<S: State<Gen>, Gen: Generation> Torus<S, Gen> for CellTorus<S, Gen> {
+    type Spc = Self;
+
+    fn space(&self) -> &Self::Spc {
+        self
+    }
+
     fn info(&self, generation: &Gen) {
         info!("Generation: {generation:?}");
         let mut lines = Vec::new();
@@ -85,6 +86,24 @@ impl<S: State<Gen>, Gen: Generation> Torus<S, Gen> for CellTorus<S, Gen> {
 
     fn update_all_cells(&mut self, generation: &Gen) -> Result<()> {
         self.update_all(generation)
+    }
+
+    fn tiling(&self) -> Tiling {
+        self.tiling
+    }
+
+    fn dimensions(&self) -> Vec<usize> {
+        self.dimensions.clone()
+    }
+
+    fn coordinates(
+        &self,
+        _region: &<Self::Spc as Space<S, Gen>>::Reg,
+        location: &<Self::Spc as Space<S, Gen>>::Loc,
+    ) -> (usize, usize) {
+        let width = self.dimensions[0];
+        let index = location.0.index;
+        (index % width, index / width)
     }
 }
 
@@ -109,29 +128,9 @@ where
         }
         Ok(())
     }
-}
 
-impl<Spc, S, Gen> GrayScaleTorus<Spc, S, Gen> for CellTorus<S, Gen>
-where
-    Spc: Space<S, Gen, Loc = Cell<S, Gen>>,
-    S: State<Gen> + GrayScale,
-    Gen: Generation,
-{
-    fn export(
-        &self,
-        _region: &Spc::Reg,
-        generation: &Gen,
-        context: &<S as GrayScale>::Context,
-        export_dir: Option<&PathBuf>,
-    ) -> Result<()> {
-        if let Some(dir) = export_dir {
-            create_dir_all(&dir)?;
-            match self.tiling {
-                Tiling::Hexagons => export::<S, Gen>(self, generation, context, &dir)?,
-                _ => todo!(),
-            }
-        }
-        Ok(())
+    fn locations(&self, _region: &Self::Reg) -> impl IntoIterator<Item = Self::Loc> {
+        self.cells.clone()
     }
 }
 
@@ -141,32 +140,46 @@ fn create_cells<S: State<Gen>, Gen: Generation, F>(
     cells: &mut Vec<Cell<S, Gen>>,
     initial_gen: &Gen,
     initial_state: &F,
-) where
+    start_index: usize,
+) -> usize
+where
     F: Fn(&[usize]) -> S,
 {
+    let next_index: usize;
     co_ordinates.push(0);
     if dimensions.len() == 1 {
         for i in 0..dimensions[0] {
             co_ordinates.pop();
             co_ordinates.push(i);
             let state = initial_state(co_ordinates);
-            cells.push(Cell::new(initial_gen.clone(), state));
+            cells.push(Cell::new_with_index(
+                initial_gen.clone(),
+                state,
+                start_index + i,
+            ));
         }
+        next_index = start_index + dimensions[0];
     } else if dimensions.len() > 1 {
+        let mut start_index = start_index;
         let subdimensions = &dimensions[1..];
         for i in 0..dimensions[0] {
             co_ordinates.pop();
             co_ordinates.push(i);
-            create_cells(
+            start_index = create_cells(
                 co_ordinates,
                 subdimensions,
                 cells,
                 initial_gen,
                 initial_state,
+                start_index,
             );
         }
+        next_index = start_index;
+    } else {
+        next_index = start_index;
     }
     co_ordinates.pop();
+    next_index
 }
 
 fn connect_orthogonally_and_diagonally<S, Gen>(torus: &CellTorus<S, Gen>) -> Result<()>
@@ -366,57 +379,4 @@ fn line_to_string<S: State<Gen>, Gen: Generation>(
         line.push_str(sep);
     }
     line
-}
-
-fn export<S, Gen>(
-    torus: &CellTorus<S, Gen>,
-    generation: &Gen,
-    context: &<S as GrayScale>::Context,
-    dir: &PathBuf,
-) -> Result<()>
-where
-    S: State<Gen> + GrayScale,
-    Gen: Generation,
-{
-    if torus.dimensions.len() != 2 {
-        return Err(anyhow!("Torus should be two-dimensional"));
-    }
-    let height = torus.dimensions[0];
-    let width = torus.dimensions[1];
-    let mut img = GrayImage::new((width * 4 + 2) as u32, (height * 3 + 1) as u32);
-
-    let region: CellRegion<CellTorus<S, Gen>, S, Gen> = CellRegion::new(generation.clone());
-    let mut offset = 0;
-    for y in 0..height {
-        let line = &torus.cells[offset..(offset + width)];
-        let xs = if (y % 2) == 0 { 2 } else { 0 };
-        for x in 0..width {
-            let gray = (region.state(&line[x]) as Option<S>)
-                .map(|s| s.gray_value(context))
-                .unwrap_or(128);
-            let luma = [gray];
-            let xo = (xs + 4 * x) as u32;
-            let yo = 3 * y as u32;
-            for xp in [1, 2] {
-                for yp in 0..=3 {
-                    img.put_pixel(xo + xp, yo + yp, Luma::from(luma.clone()));
-                }
-            }
-            for xp in [0, 3] {
-                for yp in [1, 2] {
-                    img.put_pixel(xo + xp, yo + yp, Luma::from(luma.clone()));
-                }
-            }
-        }
-        offset = offset + width;
-    }
-
-    let mut file_path = dir.clone();
-    file_path.push(format!("gen-{generation:?}.png"));
-    let mut writer = OpenOptions::new()
-        .create(true)
-        .write(true)
-        .open(file_path)?;
-    img.write_to(&mut writer, image::ImageFormat::Png)?;
-    Ok(())
 }

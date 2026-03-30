@@ -79,6 +79,19 @@ where
     }
 }
 
+impl<Spc, S, Gen> Debug for CellRegion<Spc, S, Gen>
+where
+    Spc: Space<S, Gen, Reg = Self, Loc = Cell<S, Gen>>,
+    S: State<Gen>,
+    Gen: Generation,
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("CellRegion")
+            .field("generation", &self.generation)
+            .finish()
+    }
+}
+
 #[derive(Debug)]
 pub struct Cell<S: State<Gen>, Gen: Generation>(Rc<InnerCell<S, Gen>>);
 
@@ -131,6 +144,12 @@ where
 impl<S: State<Gen>, Gen: Generation> Cell<S, Gen> {
     pub fn new(generation: Gen, state: S) -> Self {
         Cell(Rc::new(InnerCell::new(generation, state)))
+    }
+
+    pub fn new_with_index(generation: Gen, state: S, index: usize) -> Self {
+        let mut inner = InnerCell::new(generation, state);
+        inner.index = index;
+        Cell(Rc::new(inner))
     }
 
     pub fn has_state(&self, generation: &Gen) -> bool {
@@ -187,6 +206,7 @@ where
 
 struct InnerCell<S: State<Gen>, Gen: Generation> {
     id: Uuid,
+    index: usize,
     state_map: RwLock<HashMap<Gen, S>>,
     effectors: RwLock<HashSet<Cell<S, Gen>>>,
 }
@@ -200,6 +220,7 @@ impl<S: State<Gen>, Gen: Generation> InnerCell<S, Gen> {
         let effectors = RwLock::new(HashSet::new());
         InnerCell {
             id,
+            index: 0,
             state_map,
             effectors,
         }

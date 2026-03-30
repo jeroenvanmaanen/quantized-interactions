@@ -1,23 +1,21 @@
 use anyhow::{Result, anyhow};
 use image::{GrayImage, Luma};
+use log::{debug, info};
 use std::{
     fs::{OpenOptions, create_dir_all},
     path::PathBuf,
 };
 
 use crate::{
-    patch::{
-        LocationInPatch,
-        torus::{PatchTorus, TorusPatchLinks},
-    },
-    structure::{Generation, GrayScale, Space, State},
-    torus::{GrayScaleTorus, Tiling},
+    structure::{Generation, GrayScale, Location, Space, State},
+    torus::{GrayScaleTorus, Tiling, Torus},
 };
 
-impl<Spc, S, Gen> GrayScaleTorus<Spc, S, Gen> for PatchTorus<S, Gen, TorusPatchLinks>
+impl<T: Torus<S, Gen>, Spc, S, L, Gen> GrayScaleTorus<Spc, S, Gen> for T
 where
-    Spc: Space<S, Gen, Loc = LocationInPatch>,
+    Spc: Space<S, Gen, Loc = L>,
     S: State<Gen> + GrayScale + Copy,
+    L: Location<Spc, S, Gen>,
     Gen: Generation,
 {
     fn export(
@@ -29,8 +27,8 @@ where
     ) -> Result<()> {
         if let Some(dir) = export_dir {
             create_dir_all(&dir)?;
-            match self.tiling {
-                Tiling::Hexagons => export::<S, Gen>(self, generation, context, &dir)?,
+            match self.tiling() {
+                Tiling::Hexagons => export::<Self, S, Gen>(self, generation, context, &dir)?,
                 _ => todo!(),
             }
         }
@@ -38,31 +36,40 @@ where
     }
 }
 
-fn export<S, Gen>(
-    torus: &PatchTorus<S, Gen, TorusPatchLinks>,
+fn export<T, S, Gen>(
+    torus: &T,
     generation: &Gen,
     context: &<S as GrayScale>::Context,
     dir: &PathBuf,
 ) -> Result<()>
 where
+    T: Torus<S, Gen>,
     S: State<Gen> + GrayScale + Copy,
     Gen: Generation,
 {
-    if torus.dimensions.len() != 2 {
+    info!("Exporting generation [{generation:?}]");
+    let dimensions = torus.dimensions();
+    if dimensions.len() != 2 {
         return Err(anyhow!("Torus should be two-dimensional"));
     }
-    let width = torus.dimensions[0];
-    let height = torus.dimensions[1];
+    let width = dimensions[0];
+    let height = dimensions[1];
     let mut img = GrayImage::new((width * 4 + 2) as u32, (height * 3 + 1) as u32);
 
-    let crystal = &torus.crystal;
-    for region in crystal.regions(generation) {
-        for loc in crystal.locations(&region) {
-            let (x, y) = torus.coordinates(region.clone(), &loc);
+    let space = torus.space();
+    for region in space.regions(generation) {
+        info!("Exporting region [{region:?}]");
+        for loc in space.locations(&region) {
+            let (x, y) = torus.coordinates(&region, &loc);
             let xs = if (y % 2) == 0 { 2 } else { 0 };
-            let gray = (crystal.state(&region, &loc) as Option<S>)
+            let gray = space
+                .state(&region, &loc)
                 .map(|s| s.gray_value(context))
                 .unwrap_or(128);
+            debug!(
+                "Coordinates: ({x}, {y}) -> [{:?}]",
+                space.state(&region, &loc)
+            );
             let luma = [gray];
             let xo = (xs + 4 * x) as u32;
             let yo = 3 * y as u32;
