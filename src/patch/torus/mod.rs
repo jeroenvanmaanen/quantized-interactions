@@ -6,7 +6,7 @@ use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 use crate::{
     patch::{AtMostSixEffectors, Effectors, LocationInPatch, PATCH_SIZE, Patch, PatchLinks},
-    structure::{Generation, State},
+    structure::{Generation, Space, State},
     torus::{Tiling, Torus},
 };
 use info::info_hexagons;

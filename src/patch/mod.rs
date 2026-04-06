@@ -69,39 +69,6 @@ where
         }
     }
 
-    fn update_all(&mut self, generation: &Gen) -> Result<()> {
-        let patches = &self.generations[generation];
-        let mut updated_patches = Vec::new();
-        debug!("Number of patches: [{generation:?}]: {}", patches.len());
-        for patch_index in 0..patches.len() {
-            let patch_ref = &patches[patch_index];
-            let mut patch = patch_ref.borrow_mut();
-            self.stitch(&mut patch, generation);
-            let mut updated_patch =
-                Patch::new_init(patch.cells[0], patch_index, generation.clone());
-            debug!("Patch size: {}", patch.size);
-            for i in 0..patch.size {
-                let location = LocationInPatch {
-                    index: i,
-                    patch: patch.index,
-                };
-                if self.patch_links[patch_index]
-                    .effectors()
-                    .iter(i)
-                    .next()
-                    .is_some()
-                {
-                    let new_state = S::update(self, patch_ref, &location)?;
-                    updated_patch.cells[i as usize] = new_state;
-                }
-            }
-            updated_patches.push(Rc::new(RefCell::new(updated_patch)));
-        }
-        let next_generation = generation.successor();
-        self.generations.insert(next_generation, updated_patches);
-        Ok(())
-    }
-
     pub fn patch_count(&self) -> usize {
         self.patch_links.len()
     }
@@ -150,17 +117,42 @@ where
     }
 
     fn update_all(&mut self, generation: &Gen) -> Result<()> {
-        for patch in self.regions(generation) {
-            for loc in self.locations(&patch) {
-                let new_state = S::update(self, &patch, &loc)?;
-                let mut patch_borrow = patch.borrow_mut();
-                patch_borrow.cells[loc.index as usize] = new_state;
+        let patches = &self.generations[generation];
+        let next_generation = generation.successor();
+        let mut updated_patches = Vec::new();
+        debug!("Number of patches: [{generation:?}]: {}", patches.len());
+        for patch_index in 0..patches.len() {
+            let patch_ref = &patches[patch_index];
+            let mut patch = patch_ref.borrow_mut();
+            self.stitch(&mut patch, generation);
+            drop(patch); // Drop temporary mutable borrow
+            let patch = patch_ref.borrow();
+            let mut updated_patch = patch.clone();
+            updated_patch.generation = next_generation.clone();
+            debug!("Patch size: {}", patch.size);
+            for i in 0..patch.size {
+                let location = LocationInPatch {
+                    index: i,
+                    patch: patch.index,
+                };
+                if self.patch_links[patch_index]
+                    .effectors()
+                    .iter(i)
+                    .next()
+                    .is_some()
+                {
+                    let new_state = S::update(self, patch_ref, &location)?;
+                    updated_patch.cells[i as usize] = new_state;
+                }
             }
+            updated_patches.push(Rc::new(RefCell::new(updated_patch)));
         }
+        self.generations.insert(next_generation, updated_patches);
         Ok(())
     }
 }
 
+#[derive(Clone)]
 pub struct Patch<S: State<Gen> + Copy, Gen: Generation> {
     cells: [S; PATCH_SIZE as usize],
     cell_patch: [u8; PATCH_SIZE as usize],
