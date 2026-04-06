@@ -23,7 +23,7 @@ pub use poc::example as poc_example;
 pub use torus::new_hexagonal_torus;
 
 use anyhow::{Result, anyhow};
-use std::{cell::RefCell, collections::HashMap, fmt::Debug, ops::Range, rc::Rc};
+use std::{borrow::Cow, cell::RefCell, collections::HashMap, fmt::Debug, ops::Range, rc::Rc};
 
 use crate::structure::{Generation, Location, Region, Space, State};
 
@@ -74,14 +74,16 @@ where
     }
 
     fn stitch(&self, patch: &mut Patch<S, Gen>, generation: &Gen) {
+        let this_index = &patch.index;
+        debug!("Stitch patch: [{}]", this_index);
         if let Some(patches) = self.generations.get(generation) {
             let edges = &self.patch_links[patch.index].edges();
-            for i in patch.size..patch.total_size {
-                if let Some((other_index, j)) = edges.get(&i) {
-                    let other = patches[*other_index].borrow();
-                    let state = other.cells[*j as usize];
-                    patch.cells[i as usize] = state;
-                }
+            debug!("Number of edge cells: [{}]", edges.len());
+            for (i, (other_index, j)) in edges.iter() {
+                let other = patches[*other_index].borrow();
+                let state = other.cells[*j as usize];
+                debug!("Copy ({other_index}, {j} = {state:?}) to ({this_index}, {i})");
+                patch.cells[*i as usize] = state;
             }
         }
     }
@@ -114,6 +116,17 @@ where
             .get(generation)
             .map(Clone::clone)
             .unwrap_or_else(|| Vec::new())
+    }
+
+    fn region<'a>(
+        &'a self,
+        generation: &Gen,
+        location: &Self::Loc,
+    ) -> Option<std::borrow::Cow<'a, Self::Reg>> {
+        self.generations
+            .get(generation)
+            .and_then(|patches| patches.get(location.patch))
+            .map(|patch| Cow::Borrowed::<'a>(patch))
     }
 
     fn update_all(&mut self, generation: &Gen) -> Result<()> {
@@ -202,7 +215,7 @@ where
     fn state(&self, location: &Spc::Loc) -> Option<S> {
         let i = location.index;
         let region = self.borrow();
-        if i < region.size {
+        if i < region.total_size {
             Some(region.cells[location.index as usize])
         } else {
             None
@@ -253,7 +266,7 @@ where
     }
 
     fn id(&self) -> String {
-        todo!()
+        format!("<{}#{}>", self.patch, self.index)
     }
 }
 

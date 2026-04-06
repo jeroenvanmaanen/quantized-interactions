@@ -60,6 +60,7 @@ impl State<usize> for Wave {
             for effector in effectors {
                 trace!("Effector: [{}]", effector.id());
                 if let Some(other_state) = region.state(&effector) as Option<Wave> {
+                    trace!("Effector state: [{:?}]", other_state);
                     if let Some(c) = other_state.effector_count {
                         let max_c = cmp::max(this_c, c);
                         let delta =
@@ -167,8 +168,8 @@ fn run_example<T: Torus<Wave, usize> + GrayScaleTorus<Wave, usize>>(
     let mut torus = torus;
 
     let center = Wave::new(0.0, true);
-    for dx in 0..1 {
-        for dy in 0..1 {
+    for dx in 0..2 {
+        for dy in 0..2 {
             torus.adjust(&generation, size / 2 + dx, size / 2 + dy, center)?;
         }
     }

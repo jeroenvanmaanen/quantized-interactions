@@ -6,6 +6,7 @@ use anyhow::{Result, anyhow};
 // use log::debug;
 use log::trace;
 use std::{
+    borrow::Cow,
     collections::{HashMap, HashSet},
     fmt::Debug,
     hash::Hash,
@@ -43,6 +44,19 @@ where
     }
 }
 
+impl<Spc, S, Gen> ToOwned for CellRegion<Spc, S, Gen>
+where
+    Spc: Space<S, Gen>,
+    S: State<Gen>,
+    Gen: Generation,
+{
+    type Owned = Self;
+
+    fn to_owned(&self) -> Self::Owned {
+        CellRegion::new(self.generation.clone())
+    }
+}
+
 #[derive(Default)]
 pub struct CellSpace;
 
@@ -53,6 +67,10 @@ impl<S: State<Gen>, Gen: Generation> Space<S, Gen> for CellSpace {
     fn regions(&self, generation: &Gen) -> impl IntoIterator<Item = Self::Reg> {
         let region: Self::Reg = CellRegion::new(generation.clone());
         [region]
+    }
+
+    fn region<'a>(&'a self, generation: &Gen, _location: &Self::Loc) -> Option<Cow<'a, Self::Reg>> {
+        Some(Cow::Owned(CellRegion::new(generation.clone())))
     }
 
     fn update_all(&mut self, _generation: &Gen) -> Result<()> {

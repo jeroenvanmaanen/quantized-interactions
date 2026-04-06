@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use anyhow::{Result, anyhow};
 use log::{debug, info, trace};
 
@@ -133,6 +135,14 @@ where
     fn regions(&self, generation: &Gen) -> impl IntoIterator<Item = Self::Reg> {
         let region = CellRegion::new(generation.clone());
         [region]
+    }
+
+    fn region<'a>(
+        &'a self,
+        generation: &Gen,
+        _location: &Self::Loc,
+    ) -> Option<std::borrow::Cow<'a, Self::Reg>> {
+        Some(Cow::Owned(CellRegion::new(generation.clone())))
     }
 
     fn update_all(&mut self, generation: &Gen) -> Result<()> {

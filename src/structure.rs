@@ -1,5 +1,6 @@
 use anyhow::Result;
 use std::{
+    borrow::Cow,
     fmt::{Debug, Display},
     hash::Hash,
 };
@@ -20,17 +21,20 @@ where
 }
 
 pub trait Space<S: State<Gen>, Gen: Generation> {
-    type Reg: Region<Self, S, Gen>;
+    type Reg: Region<Self, S, Gen> + ToOwned;
     type Loc: Location<Self, S, Gen>;
 
     fn regions(&self, generation: &Gen) -> impl IntoIterator<Item = Self::Reg>;
+
+    fn region<'a>(&'a self, generation: &Gen, location: &Self::Loc) -> Option<Cow<'a, Self::Reg>>;
 
     fn locations(&self, region: &Self::Reg) -> impl IntoIterator<Item = Self::Loc> {
         region.locations()
     }
 
-    fn state(&self, region: &Self::Reg, location: &Self::Loc) -> Option<S> {
-        region.state(location)
+    fn state(&self, generation: &Gen, location: &Self::Loc) -> Option<S> {
+        self.region(generation, location)
+            .and_then(|region| region.state(location))
     }
 
     fn update_all(&mut self, generation: &Gen) -> Result<()>;

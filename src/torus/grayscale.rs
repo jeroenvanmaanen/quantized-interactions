@@ -60,12 +60,12 @@ where
             let (x, y) = torus.coordinates(&region, &loc);
             let xs = if (y % 2) == 0 { 2 } else { 0 };
             let gray = space
-                .state(&region, &loc)
+                .state(generation, &loc)
                 .map(|s| s.gray_value(context))
                 .unwrap_or(128);
             debug!(
                 "Coordinates: ({x}, {y}) -> [{:?}]",
-                space.state(&region, &loc)
+                space.state(generation, &loc)
             );
             let luma = [gray];
             let xo = (xs + 4 * x) as u32;
