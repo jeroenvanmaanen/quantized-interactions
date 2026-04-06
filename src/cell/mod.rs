@@ -154,7 +154,7 @@ where
         })
     }
 
-    fn id(&self) -> String {
+    fn id(&self, _space: &Spc) -> String {
         self.id()
     }
 }

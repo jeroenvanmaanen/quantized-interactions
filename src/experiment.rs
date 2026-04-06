@@ -29,7 +29,7 @@ impl State<usize> for Rotate {
         region: &Spc::Reg,
         location: &Spc::Loc,
     ) -> Result<Self> {
-        trace!("Update: [{}]", location.id());
+        trace!("Update: [{}]", location.id(space));
         let this_state = (region.state(location) as Option<Self>)
             .map(|s| s.angle)
             .unwrap_or(0.0);
@@ -38,7 +38,7 @@ impl State<usize> for Rotate {
         let mut angle = 0f64;
         for effector in location.effectors(space)? {
             count += 1;
-            trace!("Effector: [{}]", effector.id());
+            trace!("Effector: [{}]", effector.id(space));
             if let Some(state) = region.state(&effector) as Option<Self> {
                 angle += normalize(state.angle) + 2.0 * PI;
             }

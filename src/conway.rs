@@ -27,14 +27,14 @@ impl State<usize> for Conway {
         region: &Spc::Reg,
         location: &Spc::Loc,
     ) -> Result<Self> {
-        trace!("Update: [{}]", location.id());
+        trace!("Update: [{}]", location.id(space));
         let this_state = (region.state(location) as Option<Self>)
             .map(|s| s.alive)
             .unwrap_or(false);
         trace!("This state: [{this_state:?}]");
         let mut count = 0;
         for effector in location.effectors(space)? {
-            trace!("Effector: [{}]", effector.id());
+            trace!("Effector: [{}]", effector.id(space));
             if let Some(state) = region.state(&effector) as Option<Self> {
                 if state.alive {
                     count += 1;

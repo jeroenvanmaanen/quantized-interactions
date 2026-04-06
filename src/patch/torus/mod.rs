@@ -240,7 +240,7 @@ where
             let wi = patch_grid.internal_column_width(c);
             let hi = patch_grid.internal_row_height(r);
             let internal_size = wi * hi;
-            let even = (cell_rows_before ^ cell_colums_before) & 0x01 == 0; // TODO: is this correct?
+            let even = cell_rows_before & 0x01 == 0; // TODO: is this correct?
             let patch_links = &mut crystal.patch_links[p];
             patch_links.total_width = wc;
             patch_links.total_height = hr;

@@ -55,7 +55,7 @@ pub trait Space<S: State<Gen>, Gen: Generation> {
 
 pub trait Location<Spc: Space<S, Gen> + ?Sized, S: State<Gen>, Gen: Generation>: Sized {
     fn effectors(&self, space: &Spc) -> Result<impl IntoIterator<Item = Self>>;
-    fn id(&self) -> String;
+    fn id(&self, space: &Spc) -> String;
 }
 
 pub trait State<Gen: Generation>: Debug + Clone + Display {

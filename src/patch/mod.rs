@@ -18,7 +18,7 @@
 mod poc;
 mod torus;
 
-use log::debug;
+use log::{debug, log_enabled};
 pub use poc::example as poc_example;
 pub use torus::new_hexagonal_torus;
 
@@ -82,7 +82,13 @@ where
             for (i, (other_index, j)) in edges.iter() {
                 let other = patches[*other_index].borrow();
                 let state = other.cells[*j as usize];
-                debug!("Copy ({other_index}, {j} = {state:?}) to ({this_index}, {i})");
+                if log_enabled!(log::Level::Debug) {
+                    let loc = LocationInPatch {
+                        patch: *this_index,
+                        index: *i,
+                    };
+                    debug!("Copy ({other_index}, {j} = {state:?}) to ({loc:?})");
+                }
                 patch.cells[*i as usize] = state;
             }
         }
@@ -240,6 +246,12 @@ pub struct LocationInPatch {
     index: u8,
 }
 
+impl Debug for LocationInPatch {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_fmt(format_args!("[PatchLoc:{}#{}]", self.patch, self.index))
+    }
+}
+
 impl<S, Gen, PL> Location<Crystal<S, Gen, PL>, S, Gen> for LocationInPatch
 where
     S: State<Gen> + Copy,
@@ -265,7 +277,16 @@ where
         Ok(cell_effectors)
     }
 
-    fn id(&self) -> String {
+    fn id(&self, space: &Crystal<S, Gen, PL>) -> String {
+        if log_enabled!(log::Level::Trace) {
+            if let Some((op, oi)) = space
+                .patch_links
+                .get(self.patch)
+                .and_then(|pl| pl.edges().get(&self.index))
+            {
+                return format!("<{}#{}> ~ <{}#{}>", self.patch, self.index, op, oi);
+            }
+        }
         format!("<{}#{}>", self.patch, self.index)
     }
 }

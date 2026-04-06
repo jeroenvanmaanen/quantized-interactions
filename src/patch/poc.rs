@@ -33,7 +33,7 @@ where
         Ok(HashSet::new())
     }
 
-    fn id(&self) -> String {
+    fn id(&self, _space: &Spc) -> String {
         format!("{}", &self)
     }
 }

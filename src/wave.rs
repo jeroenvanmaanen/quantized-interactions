@@ -39,7 +39,7 @@ impl State<usize> for Wave {
         region: &Spc::Reg,
         location: &Spc::Loc,
     ) -> Result<Self> {
-        trace!("Update: [{}]", location.id());
+        trace!("Update: [{}]", location.id(space));
         let this_state: Self = region.state(location).unwrap_or_default();
         trace!("This state: [{this_state:?}]");
         let effectors = location.effectors(space)?;
@@ -58,7 +58,7 @@ impl State<usize> for Wave {
             }
         } else if let Some(this_c) = this_state.effector_count {
             for effector in effectors {
-                trace!("Effector: [{}]", effector.id());
+                trace!("Effector: [{}]", effector.id(space));
                 if let Some(other_state) = region.state(&effector) as Option<Wave> {
                     trace!("Effector state: [{:?}]", other_state);
                     if let Some(c) = other_state.effector_count {
@@ -79,7 +79,7 @@ impl State<usize> for Wave {
         }
         trace!(
             "Effector count: {}: {} (err: {})",
-            location.id(),
+            location.id(space),
             count,
             err
         );
