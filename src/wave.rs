@@ -136,10 +136,7 @@ fn patched_example(size: usize, export_dir: Option<&PathBuf>) -> Result<()> {
     let generation = 0usize;
 
     let init = Wave::new(0.0, false);
-    let mut torus = new_hexagonal_torus(init, generation.clone(), width, height)?;
-
-    let center = Wave::new(0.0, true);
-    torus.adjust(&generation, size / 2, size / 2, center)?;
+    let torus = new_hexagonal_torus(init, generation.clone(), width, height)?;
 
     run_example(torus, generation, export_dir)
 }
@@ -148,15 +145,13 @@ fn cell_example(size: usize, export_dir: Option<&PathBuf>) -> Result<()> {
     let width = size;
     let height = size;
     let generation = 0usize;
+    let init = Wave::new(0.0, false);
 
     let torus = new_cell_torus(
         Tiling::Hexagons,
         &[height, width],
         generation.clone(),
-        |v: &[usize]| {
-            let c = v[0] / 2 == height / 4 && v[1] / 2 == width / 4;
-            Wave::new(0.0, c)
-        },
+        |_: &[usize]| init,
     )?;
 
     run_example(torus, generation, export_dir)
@@ -170,6 +165,14 @@ fn run_example<T: Torus<Wave, usize> + GrayScaleTorus<Wave, usize>>(
     let mut generation = generation;
     let size = torus.dimensions()[0];
     let mut torus = torus;
+
+    let center = Wave::new(0.0, true);
+    for dx in 0..1 {
+        for dy in 0..1 {
+            torus.adjust(&generation, size / 2 + dx, size / 2 + dy, center)?;
+        }
+    }
+
     // torus.info(&generation);
     for i in 1..=(size * 10) {
         torus.space_mut().update_all(&generation)?;
