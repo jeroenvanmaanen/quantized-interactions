@@ -1,5 +1,6 @@
 use crate::{
-    cell::{CellRegion, CellTorus, new_cell_torus},
+    cell::new_cell_torus,
+    patch::new_hexagonal_torus,
     structure::{Generation, GrayScale, Location, Region, Space, State},
     torus::{GrayScaleTorus, Tiling, Torus, get_index},
 };
@@ -120,11 +121,35 @@ impl GrayScale for Wave {
     }
 }
 
-pub fn example(size: usize, export_dir: Option<&PathBuf>) -> Result<()> {
+pub fn example(patched: bool, size: usize, export_dir: Option<&PathBuf>) -> Result<()> {
+    if patched {
+        patched_example(size, export_dir)?
+    } else {
+        cell_example(size, export_dir)?
+    }
+    Ok(())
+}
+
+fn patched_example(size: usize, export_dir: Option<&PathBuf>) -> Result<()> {
     let width = size;
     let height = size;
-    let mut generation = 0usize;
-    let mut torus = new_cell_torus(
+    let generation = 0usize;
+
+    let init = Wave::new(0.0, false);
+    let mut torus = new_hexagonal_torus(init, generation.clone(), width, height)?;
+
+    let center = Wave::new(0.0, true);
+    torus.adjust(&generation, size / 2, size / 2, center)?;
+
+    run_example(torus, generation, export_dir)
+}
+
+fn cell_example(size: usize, export_dir: Option<&PathBuf>) -> Result<()> {
+    let width = size;
+    let height = size;
+    let generation = 0usize;
+
+    let torus = new_cell_torus(
         Tiling::Hexagons,
         &[height, width],
         generation.clone(),
@@ -133,27 +158,30 @@ pub fn example(size: usize, export_dir: Option<&PathBuf>) -> Result<()> {
             Wave::new(0.0, c)
         },
     )?;
-    let torus = &mut torus;
+
+    run_example(torus, generation, export_dir)
+}
+
+fn run_example<T: Torus<Wave, usize> + GrayScaleTorus<Wave, usize>>(
+    torus: T,
+    generation: usize,
+    export_dir: Option<&PathBuf>,
+) -> Result<()> {
+    let mut generation = generation;
+    let size = torus.dimensions()[0];
+    let mut torus = torus;
     // torus.info(&generation);
     for i in 1..=(size * 10) {
-        torus.update_all(&generation)?;
+        torus.space_mut().update_all(&generation)?;
         generation = generation.successor();
         // torus.info(&generation);
-        let m = smallest_local_maximum(torus, &generation);
+        let m = smallest_local_maximum(torus.space(), &generation);
         info!("Smallest local maximum: [{generation}]: [{m}]");
         if i % size == 0 {
-            let grayscale = as_grayscale(torus);
-            let region = CellRegion::new(generation.clone());
-            grayscale.export(&region, &generation, &m, export_dir)?;
+            torus.export(&generation, &m, export_dir)?;
         }
     }
     Ok(())
-}
-
-fn as_grayscale(
-    torus: &CellTorus<Wave, usize>,
-) -> &impl GrayScaleTorus<CellTorus<Wave, usize>, Wave, usize> {
-    torus
 }
 
 #[derive(Default, Debug, Clone)]

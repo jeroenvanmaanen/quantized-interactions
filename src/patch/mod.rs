@@ -143,7 +143,10 @@ where
     type Loc = LocationInPatch;
 
     fn regions(&self, generation: &Gen) -> impl IntoIterator<Item = Self::Reg> {
-        self.generations[generation].clone()
+        self.generations
+            .get(generation)
+            .map(Clone::clone)
+            .unwrap_or_else(|| Vec::new())
     }
 
     fn update_all(&mut self, generation: &Gen) -> Result<()> {

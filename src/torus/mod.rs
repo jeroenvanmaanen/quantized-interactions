@@ -21,10 +21,12 @@ pub enum Tiling {
 pub trait Torus<S: State<Gen>, Gen: Generation>: Sized {
     type Spc: Space<S, Gen>;
     fn space(&self) -> &Self::Spc;
+    fn space_mut(&mut self) -> &mut Self::Spc;
     fn info(&self, generation: &Gen);
     fn update_all_cells(&mut self, generation: &Gen) -> Result<()>;
     fn tiling(&self) -> Tiling;
     fn dimensions(&self) -> Vec<usize>;
+    fn adjust(&mut self, generation: &Gen, x: usize, y: usize, state: S) -> Result<()>;
     fn coordinates(
         &self,
         region: &<Self::Spc as Space<S, Gen>>::Reg,
@@ -32,15 +34,13 @@ pub trait Torus<S: State<Gen>, Gen: Generation>: Sized {
     ) -> (usize, usize);
 }
 
-pub trait GrayScaleTorus<Spc, S, Gen>: Torus<S, Gen>
+pub trait GrayScaleTorus<S, Gen>: Torus<S, Gen>
 where
-    Spc: Space<S, Gen>,
     S: State<Gen> + GrayScale,
     Gen: Generation,
 {
     fn export(
         &self,
-        _region: &Spc::Reg,
         generation: &Gen,
         context: &<S as GrayScale>::Context,
         export_dir: Option<&PathBuf>,

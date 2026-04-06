@@ -50,6 +50,10 @@ impl<S: State<Gen> + Copy, Gen: Generation> Torus<S, Gen> for PatchTorus<S, Gen,
         &self.crystal
     }
 
+    fn space_mut(&mut self) -> &mut Self::Spc {
+        &mut self.crystal
+    }
+
     fn info(&self, _generation: &Gen) {
         if self.tiling == Tiling::Hexagons {
             info_hexagons(self);
@@ -68,6 +72,26 @@ impl<S: State<Gen> + Copy, Gen: Generation> Torus<S, Gen> for PatchTorus<S, Gen,
 
     fn dimensions(&self) -> Vec<usize> {
         self.dimensions.clone()
+    }
+
+    fn adjust(&mut self, generation: &Gen, x: usize, y: usize, state: S) -> Result<()> {
+        let mut p = 0;
+        let mut px = x;
+        while self.crystal.patch_links[p].inner_width as usize <= px {
+            px -= self.crystal.patch_links[p].inner_width as usize;
+            p += 1;
+        }
+        let (w, _) = calculate_grid(self.dimensions[0], self.dimensions[1]);
+        let mut py = y;
+        while self.crystal.patch_links[p].inner_height as usize <= py {
+            py -= self.crystal.patch_links[p].inner_height as usize;
+            p += w;
+        }
+        let patch_ref = &self.crystal.generations[generation][p];
+        let mut patch = patch_ref.borrow_mut();
+        let pi = py as u8 * self.crystal.patch_links[p].inner_width + px as u8;
+        patch.cells[pi as usize] = state;
+        Ok(())
     }
 
     fn coordinates(

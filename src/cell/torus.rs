@@ -64,6 +64,10 @@ impl<S: State<Gen>, Gen: Generation> Torus<S, Gen> for CellTorus<S, Gen> {
         self
     }
 
+    fn space_mut(&mut self) -> &mut Self::Spc {
+        self
+    }
+
     fn info(&self, generation: &Gen) {
         info!("Generation: {generation:?}");
         let mut lines = Vec::new();
@@ -94,6 +98,17 @@ impl<S: State<Gen>, Gen: Generation> Torus<S, Gen> for CellTorus<S, Gen> {
 
     fn dimensions(&self) -> Vec<usize> {
         self.dimensions.clone()
+    }
+
+    fn adjust(&mut self, generation: &Gen, x: usize, y: usize, state: S) -> Result<()> {
+        let index = y * self.dimensions[1] + x;
+        let mut write_lock = self.cells[index]
+            .0
+            .state_map
+            .write()
+            .map_err(|e| anyhow!("Could not get write lock: {e}"))?;
+        write_lock.get_mut(generation).map(|s| *s = state);
+        Ok(())
     }
 
     fn coordinates(

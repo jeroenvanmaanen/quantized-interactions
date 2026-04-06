@@ -7,20 +7,17 @@ use std::{
 };
 
 use crate::{
-    structure::{Generation, GrayScale, Location, Space, State},
+    structure::{Generation, GrayScale, Space, State},
     torus::{GrayScaleTorus, Tiling, Torus},
 };
 
-impl<T: Torus<S, Gen>, Spc, S, L, Gen> GrayScaleTorus<Spc, S, Gen> for T
+impl<T: Torus<S, Gen>, S, Gen> GrayScaleTorus<S, Gen> for T
 where
-    Spc: Space<S, Gen, Loc = L>,
     S: State<Gen> + GrayScale + Copy,
-    L: Location<Spc, S, Gen>,
     Gen: Generation,
 {
     fn export(
         &self,
-        _region: &Spc::Reg,
         generation: &Gen,
         context: &<S as GrayScale>::Context,
         export_dir: Option<&PathBuf>,

@@ -1,6 +1,6 @@
 mod torus;
 
-pub use torus::{CellTorus, new_cell_torus};
+pub use torus::new_cell_torus;
 
 use anyhow::{Result, anyhow};
 // use log::debug;

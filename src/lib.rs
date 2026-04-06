@@ -28,6 +28,9 @@ enum Commands {
 
     #[command(about = "simulate a wave")]
     Wave {
+        #[arg(help = "use CellTorus instead of PathTorus", required = false, long)]
+        cell_torus: bool,
+
         #[arg(help = "size of torus (must be even)")]
         size: usize,
 
@@ -51,6 +54,7 @@ pub fn main() -> Result<()> {
     let cli = Cli::parse();
     match cli.cli_command {
         Some(Commands::Wave {
+            cell_torus,
             size,
             debug,
             export_dir,
@@ -58,7 +62,7 @@ pub fn main() -> Result<()> {
             if debug {
                 wave::debug(size)?
             } else {
-                wave::example(size, export_dir.as_ref())?
+                wave::example(!cell_torus, size, export_dir.as_ref())?
             }
         }
         Some(Commands::Conway) => conway::example()?,
