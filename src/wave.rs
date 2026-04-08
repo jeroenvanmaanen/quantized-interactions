@@ -122,18 +122,23 @@ impl GrayScale for Wave {
     }
 }
 
-pub fn example(patched: bool, size: usize, export_dir: Option<&PathBuf>) -> Result<()> {
+pub fn example(
+    patched: bool,
+    size: usize,
+    height: Option<usize>,
+    export_dir: Option<&PathBuf>,
+) -> Result<()> {
     if patched {
-        patched_example(size, export_dir)?
+        patched_example(size, height, export_dir)?
     } else {
         cell_example(size, export_dir)?
     }
     Ok(())
 }
 
-fn patched_example(size: usize, export_dir: Option<&PathBuf>) -> Result<()> {
+fn patched_example(size: usize, height: Option<usize>, export_dir: Option<&PathBuf>) -> Result<()> {
     let width = size;
-    let height = size;
+    let height = height.unwrap_or(size);
     let generation = 0usize;
 
     let init = Wave::new(0.0, false);
@@ -164,24 +169,27 @@ fn run_example<T: Torus<Wave, usize> + GrayScaleTorus<Wave, usize>>(
     export_dir: Option<&PathBuf>,
 ) -> Result<()> {
     let mut generation = generation;
-    let size = torus.dimensions()[0];
+    let width = torus.dimensions()[0];
+    let height = torus.dimensions()[1];
     let mut torus = torus;
 
     let center = Wave::new(0.0, true);
-    for dx in 0..2 {
-        for dy in 0..2 {
-            torus.adjust(&generation, size / 2 + dx, size / 2 + dy, center)?;
+    let cx = width / 2;
+    let cy = height / 2;
+    for dx in 0..1 {
+        for dy in 0..1 {
+            torus.adjust(&generation, cx + dx, cy + dy, center)?;
         }
     }
 
     // torus.info(&generation);
-    for i in 1..=(size * 10) {
+    for i in 1..=(width * 10) {
         torus.space_mut().update_all(&generation)?;
         generation = generation.successor();
         // torus.info(&generation);
         let m = smallest_local_maximum(torus.space(), &generation);
         info!("Smallest local maximum: [{generation}]: [{m}]");
-        if i % size == 0 {
+        if i % width == 0 {
             torus.export(&generation, &m, export_dir)?;
         }
     }

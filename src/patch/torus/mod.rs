@@ -266,7 +266,7 @@ where
                 offsets = offsets.other();
             }
             let er = if h > 1 { 1 } else { 0 };
-            let mut iy = 0;
+            let mut iy = er * wc;
             for y in er..(hr - er) {
                 let ec = if w > 1 { 1 } else { 0 };
                 for x in ec..(wc - ec) {
@@ -304,15 +304,17 @@ where
                 let right = (c + 1) % w;
                 let right_width = patch_grid.internal_column_width(right);
                 let fudge = if h > 1 { 1 } else { 0 };
+                let mut offset = fudge * wc;
                 for i in fudge..(hr - fudge) {
                     edges.insert(
-                        shuffle(i * wc),
+                        shuffle(offset),
                         (row + left, ((i + 1 - fudge) * left_width) - 1),
                     ); // leftmost cell to rightmost cell of patch to the left
                     edges.insert(
-                        shuffle(this_base + (i * wc)),
+                        shuffle(this_base + offset),
                         (row + right, (i - fudge) * right_width),
                     ); // rightmost cell to leftmost cell of patch to the right
+                    offset += wc;
                 }
                 if h > 1 {
                     // Insert corners
@@ -321,9 +323,13 @@ where
                     let right = (c + 1) % w;
                     let below = (r + 1) % h;
 
-                    edges.insert(shuffle(0), (above * w + lft, internal_size - 1));
-                    edges.insert(shuffle(wc - 1), (above * w + right, internal_size - wi));
-                    edges.insert(shuffle((hr - 1) * wc), (below * w + lft, wi - 1));
+                    let tlis = patch_grid.internal_size(above, left);
+                    let tris = patch_grid.internal_size(above, right);
+                    let lft_wi = patch_grid.internal_column_width(left);
+                    let right_wi = patch_grid.internal_column_width(right);
+                    edges.insert(shuffle(0), (above * w + lft, tlis - 1));
+                    edges.insert(shuffle(wc - 1), (above * w + right, tris - right_wi));
+                    edges.insert(shuffle((hr - 1) * wc), (below * w + lft, lft_wi - 1));
                     edges.insert(shuffle(hr * wc - 1), (below * w + right, 0));
                 }
             }
@@ -449,6 +455,10 @@ impl PatchGrid {
 
     fn column_width(&self, c: usize) -> u8 {
         self.wp + (if c < self.wq { 1 } else { 0 })
+    }
+
+    fn internal_size(&self, r: usize, c: usize) -> u8 {
+        self.internal_row_height(r) * self.internal_column_width(c)
     }
 }
 

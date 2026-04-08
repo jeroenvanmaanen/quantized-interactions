@@ -31,14 +31,17 @@ enum Commands {
         #[arg(help = "use CellTorus instead of PathTorus", required = false, long)]
         cell_torus: bool,
 
-        #[arg(help = "size of torus (must be even)")]
-        size: usize,
-
         #[arg(help = "directory to export image-files", long)]
         export_dir: Option<PathBuf>,
 
         #[arg(help = "execute debug function", required = false, long)]
         debug: bool,
+
+        #[arg(help = "width of torus (must be even)")]
+        size: usize,
+
+        #[arg(help = "height of torus (must be even)", required = false)]
+        height: Option<usize>,
     },
 
     #[command(name = "patch-poc", about = "proof-of-concept for patches of cells")]
@@ -55,14 +58,15 @@ pub fn main() -> Result<()> {
     match cli.cli_command {
         Some(Commands::Wave {
             cell_torus,
-            size,
             debug,
             export_dir,
+            size,
+            height,
         }) => {
             if debug {
                 wave::debug(size)?
             } else {
-                wave::example(!cell_torus, size, export_dir.as_ref())?
+                wave::example(!cell_torus, size, height, export_dir.as_ref())?
             }
         }
         Some(Commands::Conway) => conway::example()?,
