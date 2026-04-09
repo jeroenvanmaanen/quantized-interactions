@@ -169,6 +169,11 @@ where
         self.generations.insert(next_generation, updated_patches);
         Ok(())
     }
+
+    fn free(&mut self, generation: &Gen) -> Result<()> {
+        self.generations.remove(generation);
+        Ok(())
+    }
 }
 
 #[derive(Clone)]

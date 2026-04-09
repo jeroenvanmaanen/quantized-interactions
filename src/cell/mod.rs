@@ -76,6 +76,10 @@ impl<S: State<Gen>, Gen: Generation> Space<S, Gen> for CellSpace {
     fn update_all(&mut self, _generation: &Gen) -> Result<()> {
         Ok(())
     }
+
+    fn free(&mut self, _generation: &Gen) -> Result<()> {
+        Err(anyhow!("Unimplemented: CellSpace.free(&Gen)"))
+    }
 }
 
 impl<Spc, S, Gen> Region<Spc, S, Gen> for CellRegion<Spc, S, Gen>

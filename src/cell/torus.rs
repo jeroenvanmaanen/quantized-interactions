@@ -157,6 +157,17 @@ where
     fn locations(&self, _region: &Self::Reg) -> impl IntoIterator<Item = Self::Loc> {
         self.cells.clone()
     }
+
+    fn free(&mut self, generation: &Gen) -> Result<()> {
+        for cell in &self.cells {
+            cell.0
+                .state_map
+                .write()
+                .map_err(|e| anyhow!("Can't get write lock on cells: {e:?}"))?
+                .remove(generation);
+        }
+        Ok(())
+    }
 }
 
 fn create_cells<S: State<Gen>, Gen: Generation, F>(

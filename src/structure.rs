@@ -39,6 +39,8 @@ pub trait Space<S: State<Gen>, Gen: Generation> {
 
     fn update_all(&mut self, generation: &Gen) -> Result<()>;
 
+    fn free(&mut self, generation: &Gen) -> Result<()>;
+
     fn reduce<A, F>(&self, generation: &Gen, init: A, f: F) -> A
     where
         F: Fn(&Self::Reg, &Self::Loc, A) -> A,

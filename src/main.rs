@@ -2,5 +2,9 @@ use anyhow::Result;
 
 fn main() -> Result<()> {
     env_logger::init();
-    quantized_interactions::main()
+    if let Err(error) = quantized_interactions::main() {
+        eprintln!("Error: {error:?}");
+        return Err(error);
+    }
+    Ok(())
 }
