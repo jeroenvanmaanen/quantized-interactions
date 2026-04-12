@@ -13,8 +13,6 @@
 //! If cell_patches[e] equals -1, then the effector belongs to the interior of the same patch: *p<sub>e</sub>* equals *p<sub>a</sub>*; otherwise this effector belongs to the edge of this patch and to the interior of another patch.
 //! The state of an effector on the edge can be looked up in the `cells` array in *p<sub>e</sub>* using the index found in the `cell_index` array in patch *p<sub>a</sub>*.
 
-#![allow(dead_code)]
-
 mod poc;
 mod torus;
 
@@ -94,19 +92,6 @@ where
     }
 }
 
-fn next_adjacent(map: &HashMap<u8, usize>) -> Result<u8> {
-    let mo = map.keys().max();
-    if let Some(m) = mo {
-        if *m >= 0xFF {
-            Err(anyhow!("Too many adjacent patches: [{m:?}]"))
-        } else {
-            Ok(m + 1)
-        }
-    } else {
-        Ok(0)
-    }
-}
-
 impl<S, Gen, PL> Space<S, Gen> for Crystal<S, Gen, PL>
 where
     S: State<Gen> + Copy,
@@ -178,8 +163,6 @@ where
 #[derive(Clone)]
 pub struct Patch<S: State<Gen> + Copy, Gen: Generation> {
     cells: [S; PATCH_SIZE as usize],
-    cell_patch: [u8; PATCH_SIZE as usize],
-    cell_index: [u8; PATCH_SIZE as usize],
     index: usize,
     generation: Gen,
     size: u8,
@@ -194,8 +177,6 @@ where
     pub fn new_init(init: S, index: usize, generation: Gen) -> Self {
         Patch {
             cells: [init; PATCH_SIZE as usize],
-            cell_patch: [0xFF; PATCH_SIZE as usize],
-            cell_index: [0; PATCH_SIZE as usize],
             index,
             generation,
             size: 0,

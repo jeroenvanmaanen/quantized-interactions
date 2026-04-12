@@ -123,7 +123,6 @@ impl<S: State<Gen> + Copy, Gen: Generation> Torus<S, Gen> for PatchTorus<S, Gen,
     }
 }
 
-const MAX_PATCH_SIZE: u8 = 14 * 18;
 const SQRT_PATCH_SIZE: u8 = 17;
 
 pub fn new_hexagonal_torus<S: State<Gen> + Copy, Gen: Generation>(
@@ -409,11 +408,9 @@ fn prepare_shuffle(wc: u8, hr: u8, wide: bool, tall: bool) -> impl Fn(u8) -> u8 
 }
 
 struct PatchGrid {
-    w: usize,  // Number of patches horizontally
     wi: u8,    // Base internal width of patches
     wp: u8,    // Base width of patches
     wq: usize, // Number of patch columns that are one cell wider
-    h: usize,  // Number of patches vertically
     hi: u8,    // Base internal height of patches
     hp: u8,    // Base height of patches
     hq: usize, // Number of patch rows that are one cell wider
@@ -430,11 +427,9 @@ impl PatchGrid {
         let hp = if h > 1 { hi + 2 } else { hi };
         let hp = hp as u8;
         PatchGrid {
-            w,
             wi,
             wp,
             wq,
-            h,
             hi,
             hp,
             hq,

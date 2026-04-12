@@ -2,7 +2,7 @@ use std::{collections::HashSet, fmt::Display};
 
 use crate::{
     patch::new_hexagonal_torus,
-    structure::{Generation, Location, Region, Space, State},
+    structure::{Generation, Location, Space, State},
     torus::Torus,
 };
 
@@ -11,11 +11,6 @@ use log::info;
 
 #[derive(Default, Debug, Clone, Copy)]
 struct Trivial;
-
-#[derive(Debug)]
-struct TrivialPatch<Gen: Generation> {
-    generation: Gen,
-}
 
 impl Display for Trivial {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -35,20 +30,6 @@ where
 
     fn id(&self, _space: &Spc) -> String {
         format!("{}", &self)
-    }
-}
-
-impl<Spc: Space<Trivial, usize>> Region<Spc, Trivial, usize> for TrivialPatch<usize> {
-    fn locations(&self) -> impl IntoIterator<Item = Spc::Loc> {
-        HashSet::new()
-    }
-
-    fn generation(&self) -> usize {
-        self.generation
-    }
-
-    fn state(&self, _location: &Spc::Loc) -> Option<Trivial> {
-        None
     }
 }
 
