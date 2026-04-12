@@ -185,7 +185,7 @@ fn run_example<T: Torus<Wave, usize> + GrayScaleTorus<Wave, usize>>(
     // torus.info(&generation);
     for i in 1..=(width * 10) {
         torus.space_mut().update_all(&generation)?;
-        torus.space_mut().free(&generation);
+        torus.space_mut().free(&generation)?;
         generation = generation.successor();
         // torus.info(&generation);
         let m = smallest_local_maximum(torus.space(), &generation);
