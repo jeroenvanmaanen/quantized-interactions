@@ -176,11 +176,7 @@ fn run_example<T: Torus<Wave, usize> + GrayScaleTorus<Wave, usize>>(
     let center = Wave::new(0.0, true);
     let cx = width / 2;
     let cy = height / 2;
-    for dx in 0..1 {
-        for dy in 0..1 {
-            torus.adjust(&generation, cx + dx, cy + dy, center)?;
-        }
-    }
+    torus.adjust(&generation, cx, cy, center)?;
 
     // torus.info(&generation);
     for i in 1..=(width * 10) {
@@ -188,9 +184,9 @@ fn run_example<T: Torus<Wave, usize> + GrayScaleTorus<Wave, usize>>(
         torus.space_mut().free(&generation)?;
         generation = generation.successor();
         // torus.info(&generation);
-        let m = smallest_local_maximum(torus.space(), &generation);
-        info!("Smallest local maximum: [{generation}]: [{m}]");
         if i % width == 0 {
+            let m = smallest_local_maximum(torus.space(), &generation);
+            info!("Smallest local maximum: [{generation}]: [{m}]");
             torus.export(&generation, &m, export_dir)?;
         }
     }

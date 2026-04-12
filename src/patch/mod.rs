@@ -28,7 +28,6 @@ use std::{borrow::Cow, cell::RefCell, collections::HashMap, fmt::Debug, ops::Ran
 use crate::structure::{Generation, Location, Region, Space, State};
 
 const PATCH_SIZE: u8 = 0xFF;
-const INTERNAL: u8 = 0xD * 0xD;
 
 pub struct Crystal<S: State<Gen> + Copy, Gen: Generation, PL: PatchLinks> {
     patch_links: Vec<PL>,
