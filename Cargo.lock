@@ -854,6 +854,7 @@ dependencies = [
  "env_logger",
  "image",
  "log",
+ "paste",
  "uuid",
 ]
 

@@ -17,6 +17,7 @@ mod poc;
 mod torus;
 
 use log::{debug, log_enabled};
+use paste::paste;
 pub use poc::example as poc_example;
 pub use torus::new_hexagonal_torus;
 
@@ -25,18 +26,16 @@ use std::{borrow::Cow, cell::RefCell, collections::HashMap, fmt::Debug, ops::Ran
 
 use crate::structure::{Generation, Location, Region, Space, State};
 
-const PATCH_SIZE: u8 = 0xFF;
-
 pub struct Crystal<S: State<Gen> + Copy, Gen: Generation, PL: PatchLinks> {
     patch_links: Vec<PL>,
-    generations: HashMap<Gen, Vec<Rc<RefCell<Patch<S, Gen>>>>>,
+    generations: HashMap<Gen, Vec<Rc<RefCell<SmallPatch<S, Gen>>>>>,
 }
 
 pub trait PatchLinks {
     type Eff: Effectors;
 
     fn effectors(&self) -> &Self::Eff;
-    fn edges(&self) -> &HashMap<u8, (usize, u8)>;
+    fn edges(&self) -> &HashMap<SmallIndexType, (usize, SmallIndexType)>;
 }
 
 impl<S, Gen, PL> Crystal<S, Gen, PL>
@@ -54,7 +53,7 @@ where
         let mut patches = Vec::new();
         let mut patch_links = Vec::new();
         for index in 0..patch_count {
-            let new_patch = Patch::new_init(init, index, generation.clone());
+            let new_patch = SmallPatch::new_init(init, index, generation.clone());
             patches.push(Rc::new(RefCell::new(new_patch)));
             patch_links.push(patch_links_factory());
         }
@@ -70,7 +69,7 @@ where
         self.patch_links.len()
     }
 
-    fn stitch(&self, patch: &mut Patch<S, Gen>, generation: &Gen) {
+    fn stitch(&self, patch: &mut SmallPatch<S, Gen>, generation: &Gen) {
         let this_index = &patch.index;
         debug!("Stitch patch: [{}]", this_index);
         if let Some(patches) = self.generations.get(generation) {
@@ -98,7 +97,7 @@ where
     Gen: Generation,
     PL: PatchLinks,
 {
-    type Reg = Rc<RefCell<Patch<S, Gen>>>;
+    type Reg = Rc<RefCell<SmallPatch<S, Gen>>>;
     type Loc = LocationInPatch;
 
     fn regions(&self, generation: &Gen) -> impl IntoIterator<Item = Self::Reg> {
@@ -160,32 +159,49 @@ where
     }
 }
 
-#[derive(Clone)]
-pub struct Patch<S: State<Gen> + Copy, Gen: Generation> {
-    cells: [S; PATCH_SIZE as usize],
-    index: usize,
-    generation: Gen,
-    size: u8,
-    total_size: u8, // Includes edges
+macro_rules! patch {
+    ($name:ident { cells: [$index_type:ty; $size:expr] }) => {
+        paste! {
+            const [< $name:snake:upper _PATCH_SIZE >]: $index_type = $size;
+
+            type [<$name IndexType>] = $index_type;
+
+            #[derive(Clone)]
+            pub struct [<$name Patch>]<S: State<Gen> + Copy, Gen: Generation> {
+                cells: [S; [< $name:snake:upper _PATCH_SIZE >] as usize],
+                index: usize,
+                generation: Gen,
+                size: $index_type,
+                total_size: $index_type, // Includes edges
+            }
+
+            impl<S, Gen> [<$name Patch>]<S, Gen>
+            where
+                S: State<Gen> + Copy,
+                Gen: Generation,
+            {
+                pub fn new_init(init: S, index: usize, generation: Gen) -> Self {
+                    [<$name Patch>] {
+                        cells: [init; [< $name:snake:upper _PATCH_SIZE >] as usize],
+                        index,
+                        generation,
+                        size: 0,
+                        total_size: 0,
+                    }
+                }
+            }
+
+        }
+    };
 }
 
-impl<S, Gen> Patch<S, Gen>
-where
-    S: State<Gen> + Copy,
-    Gen: Generation,
-{
-    pub fn new_init(init: S, index: usize, generation: Gen) -> Self {
-        Patch {
-            cells: [init; PATCH_SIZE as usize],
-            index,
-            generation,
-            size: 0,
-            total_size: 0,
-        }
+patch! {
+    Small {
+        cells: [u16; 0x3FF]
     }
 }
 
-impl<Spc, S, Gen> Region<Spc, S, Gen> for Rc<RefCell<Patch<S, Gen>>>
+impl<Spc, S, Gen> Region<Spc, S, Gen> for Rc<RefCell<SmallPatch<S, Gen>>>
 where
     Spc: Space<S, Gen, Loc = LocationInPatch>,
     S: State<Gen> + Copy,
@@ -214,7 +230,7 @@ where
     }
 }
 
-impl<S, Gen> Debug for Patch<S, Gen>
+impl<S, Gen> Debug for SmallPatch<S, Gen>
 where
     S: State<Gen> + Copy,
     Gen: Generation,
@@ -228,7 +244,7 @@ where
 }
 pub struct LocationInPatch {
     patch: usize,
-    index: u8,
+    index: SmallIndexType,
 }
 
 impl Debug for LocationInPatch {
@@ -277,7 +293,7 @@ where
 }
 
 pub struct AllLocationsInPatchIterator {
-    inner: Range<u8>,
+    inner: Range<SmallIndexType>,
     patch: usize,
 }
 
@@ -297,16 +313,16 @@ impl Iterator for AllLocationsInPatchIterator {
 }
 
 pub struct EffectorIterator<'a> {
-    effectors: &'a [u8],
+    effectors: &'a [SmallIndexType],
     pos: usize,
-    to_go: u8,
+    to_go: SmallIndexType,
 }
 
 impl<'a> Iterator for EffectorIterator<'a> {
-    type Item = u8;
+    type Item = SmallIndexType;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.to_go < 1 || self.effectors[self.pos] == 0xFF {
+        if self.to_go < 1 || self.effectors[self.pos] == SMALL_PATCH_SIZE {
             None
         } else {
             let pos = self.pos;
@@ -318,22 +334,26 @@ impl<'a> Iterator for EffectorIterator<'a> {
 }
 
 pub trait Effectors: Default {
-    fn iter<'a>(&'a self, index: u8) -> EffectorIterator<'a>;
-    fn add(&mut self, index: u8, effector_index: u8) -> Result<u8>;
+    fn iter<'a>(&'a self, index: SmallIndexType) -> EffectorIterator<'a>;
+    fn add(
+        &mut self,
+        index: SmallIndexType,
+        effector_index: SmallIndexType,
+    ) -> Result<SmallIndexType>;
     fn debug<S: AsRef<str>>(&self, label: S);
 }
 
 #[derive(Clone)]
 pub struct AtMostSixEffectors {
-    effector_counts: [u8; PATCH_SIZE as usize],
-    effectors: [u8; 6 * PATCH_SIZE as usize],
+    effector_counts: [SmallIndexType; SMALL_PATCH_SIZE as usize],
+    effectors: [SmallIndexType; 6 * SMALL_PATCH_SIZE as usize],
 }
 
 impl Default for AtMostSixEffectors {
     fn default() -> Self {
         let mut result = Self {
-            effector_counts: [0; PATCH_SIZE as usize],
-            effectors: [0xFFu8; 6 * PATCH_SIZE as usize],
+            effector_counts: [0; SMALL_PATCH_SIZE as usize],
+            effectors: [SMALL_PATCH_SIZE; 6 * SMALL_PATCH_SIZE as usize],
         };
         for i in 0..6 {
             result.effectors[i] = 0;
@@ -343,7 +363,7 @@ impl Default for AtMostSixEffectors {
 }
 
 impl Effectors for AtMostSixEffectors {
-    fn iter<'a>(&'a self, index: u8) -> EffectorIterator<'a> {
+    fn iter<'a>(&'a self, index: SmallIndexType) -> EffectorIterator<'a> {
         EffectorIterator {
             effectors: &self.effectors,
             pos: 6 * index as usize,
@@ -351,7 +371,11 @@ impl Effectors for AtMostSixEffectors {
         }
     }
 
-    fn add(&mut self, index: u8, effector_index: u8) -> Result<u8> {
+    fn add(
+        &mut self,
+        index: SmallIndexType,
+        effector_index: SmallIndexType,
+    ) -> Result<SmallIndexType> {
         let i = index as usize;
         let n = self.effector_counts[i] as usize;
         let base = 6 * i;

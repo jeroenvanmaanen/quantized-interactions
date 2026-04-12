@@ -5,7 +5,10 @@ use log::{debug, warn};
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 use crate::{
-    patch::{AtMostSixEffectors, Effectors, LocationInPatch, PATCH_SIZE, Patch, PatchLinks},
+    patch::{
+        AtMostSixEffectors, Effectors, LocationInPatch, PatchLinks, SMALL_PATCH_SIZE,
+        SmallIndexType, SmallPatch,
+    },
     structure::{Generation, Space, State},
     torus::{Tiling, Torus},
 };
@@ -23,11 +26,11 @@ pub struct PatchTorus<S: State<Gen> + Copy, Gen: Generation, PL: PatchLinks> {
 #[derive(Default)]
 pub struct TorusPatchLinks {
     effectors: AtMostSixEffectors,
-    edges: HashMap<u8, (usize, u8)>,
-    total_width: u8,
-    total_height: u8,
-    inner_width: u8,
-    inner_height: u8,
+    edges: HashMap<SmallIndexType, (usize, SmallIndexType)>,
+    total_width: SmallIndexType,
+    total_height: SmallIndexType,
+    inner_width: SmallIndexType,
+    inner_height: SmallIndexType,
     even: bool,
 }
 
@@ -38,7 +41,7 @@ impl PatchLinks for TorusPatchLinks {
         &self.effectors
     }
 
-    fn edges(&self) -> &std::collections::HashMap<u8, (usize, u8)> {
+    fn edges(&self) -> &std::collections::HashMap<SmallIndexType, (usize, SmallIndexType)> {
         &self.edges
     }
 }
@@ -89,14 +92,15 @@ impl<S: State<Gen> + Copy, Gen: Generation> Torus<S, Gen> for PatchTorus<S, Gen,
         }
         let patch_ref = &self.crystal.generations[generation][p];
         let mut patch = patch_ref.borrow_mut();
-        let pi = py as u8 * self.crystal.patch_links[p].inner_width + px as u8;
+        let pi =
+            py as SmallIndexType * self.crystal.patch_links[p].inner_width + px as SmallIndexType;
         patch.cells[pi as usize] = state;
         Ok(())
     }
 
     fn coordinates(
         &self,
-        patch_ref: &Rc<RefCell<Patch<S, Gen>>>,
+        patch_ref: &Rc<RefCell<SmallPatch<S, Gen>>>,
         location: &LocationInPatch,
     ) -> (usize, usize) {
         let patch_links = &self.crystal.patch_links;
@@ -183,7 +187,7 @@ fn calculate_oblong(long: usize, short: usize) -> (usize, usize) {
 fn calculate_footprint(long: usize, short: usize, s: usize) -> (usize, usize, usize) {
     let sd = if s > 1 { 2 } else { 0 };
     let sx = sd + (short + s - 1) / s;
-    let lx = (PATCH_SIZE as usize) / sx;
+    let lx = (SMALL_PATCH_SIZE as usize) / sx;
     let ld = if lx < long { 2 } else { 0 };
     let l = (long + lx - ld - 1) / (lx - ld);
     let mut edge = 0;
@@ -359,9 +363,14 @@ where
 /// |  4 |  8 |            Left edge, minus corners
 /// |  7 | 11 |            Right edge, minus corners
 /// ```
-fn prepare_shuffle(wc: u8, hr: u8, wide: bool, tall: bool) -> impl Fn(u8) -> u8 {
+fn prepare_shuffle(
+    wc: SmallIndexType,
+    hr: SmallIndexType,
+    wide: bool,
+    tall: bool,
+) -> impl Fn(SmallIndexType) -> SmallIndexType {
     let p_size = hr * wc;
-    let mut shuffle = [0u8; PATCH_SIZE as usize];
+    let mut shuffle = [0 as SmallIndexType; SMALL_PATCH_SIZE as usize];
     let mut y_start = 0;
     let mut y_end = p_size;
     let mut x_start = 0;
@@ -408,24 +417,24 @@ fn prepare_shuffle(wc: u8, hr: u8, wide: bool, tall: bool) -> impl Fn(u8) -> u8 
 }
 
 struct PatchGrid {
-    wi: u8,    // Base internal width of patches
-    wp: u8,    // Base width of patches
-    wq: usize, // Number of patch columns that are one cell wider
-    hi: u8,    // Base internal height of patches
-    hp: u8,    // Base height of patches
-    hq: usize, // Number of patch rows that are one cell wider
+    wi: SmallIndexType, // Base internal width of patches
+    wp: SmallIndexType, // Base width of patches
+    wq: usize,          // Number of patch columns that are one cell wider
+    hi: SmallIndexType, // Base internal height of patches
+    hp: SmallIndexType, // Base height of patches
+    hq: usize,          // Number of patch rows that are one cell wider
 }
 
 impl PatchGrid {
     fn new(width: usize, w: usize, height: usize, h: usize) -> Self {
-        let wi = (width / w) as u8; // With of a small patch
+        let wi = (width / w) as SmallIndexType; // With of a small patch
         let wq = width - w * (wi as usize); // Number of collums that are one cell wider
         let wp = if w > 1 { wi + 2 } else { wi };
-        let wp = wp as u8;
-        let hi = (height / h) as u8; // Height of a small patch
+        let wp = wp as SmallIndexType;
+        let hi = (height / h) as SmallIndexType; // Height of a small patch
         let hq = height - h * (hi as usize); // Number of rows that are one cell taller
         let hp = if h > 1 { hi + 2 } else { hi };
-        let hp = hp as u8;
+        let hp = hp as SmallIndexType;
         PatchGrid {
             wi,
             wp,
@@ -436,30 +445,30 @@ impl PatchGrid {
         }
     }
 
-    fn internal_row_height(&self, r: usize) -> u8 {
+    fn internal_row_height(&self, r: usize) -> SmallIndexType {
         self.hi + (if r < self.hq { 1 } else { 0 })
     }
 
-    fn row_height(&self, r: usize) -> u8 {
+    fn row_height(&self, r: usize) -> SmallIndexType {
         self.hp + (if r < self.hq { 1 } else { 0 })
     }
 
-    fn internal_column_width(&self, c: usize) -> u8 {
+    fn internal_column_width(&self, c: usize) -> SmallIndexType {
         self.wi + (if c < self.wq { 1 } else { 0 })
     }
 
-    fn column_width(&self, c: usize) -> u8 {
+    fn column_width(&self, c: usize) -> SmallIndexType {
         self.wp + (if c < self.wq { 1 } else { 0 })
     }
 
-    fn internal_size(&self, r: usize, c: usize) -> u8 {
+    fn internal_size(&self, r: usize, c: usize) -> SmallIndexType {
         self.internal_row_height(r) * self.internal_column_width(c)
     }
 }
 
 struct Offsets {
-    even: Vec<(u8, u8)>,
-    odd: Vec<(u8, u8)>,
+    even: Vec<(SmallIndexType, SmallIndexType)>,
+    odd: Vec<(SmallIndexType, SmallIndexType)>,
 }
 
 #[derive(Clone)]
@@ -470,12 +479,12 @@ enum Alternatives {
 
 impl Alternatives {
     fn new(even_coords: Vec<(i8, i8)>, odd_coords: Vec<(i8, i8)>) -> Self {
-        let even = coords_to_u8(even_coords);
-        let odd = coords_to_u8(odd_coords);
+        let even = coords_to_small_index_type(even_coords);
+        let odd = coords_to_small_index_type(odd_coords);
         Alternatives::Even(Rc::new(Offsets { even, odd }))
     }
 
-    fn offsets(&self) -> &[(u8, u8)] {
+    fn offsets(&self) -> &[(SmallIndexType, SmallIndexType)] {
         match self {
             Alternatives::Even(offsets) => &offsets.even,
             Alternatives::Odd(offsets) => &offsets.odd,
@@ -490,10 +499,10 @@ impl Alternatives {
     }
 }
 
-fn coords_to_u8(coords: Vec<(i8, i8)>) -> Vec<(u8, u8)> {
+fn coords_to_small_index_type(coords: Vec<(i8, i8)>) -> Vec<(SmallIndexType, SmallIndexType)> {
     let mut result = Vec::new();
     for (x, y) in coords {
-        result.push(((x + 1) as u8, (y + 1) as u8));
+        result.push(((x + 1) as SmallIndexType, (y + 1) as SmallIndexType));
     }
     result
 }

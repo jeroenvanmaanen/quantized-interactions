@@ -4,7 +4,7 @@ use log::info;
 
 use crate::{
     patch::{
-        AtMostSixEffectors, Effectors,
+        AtMostSixEffectors, Effectors, SMALL_PATCH_SIZE, SmallIndexType,
         torus::{PatchLinks, TorusPatchLinks, calculate_grid, prepare_shuffle},
     },
     structure::{Generation, State},
@@ -28,11 +28,15 @@ where
     for i in 0..crystal.patch_count() {
         let patch_links = &crystal.patch_links[i];
         info!("## Patch: {i}: edges");
-        let projections = |e: &HashMap<u8, (usize, u8)>, x, y, w| {
+        let projections = |e: &HashMap<SmallIndexType, (usize, SmallIndexType)>, x, y, w| {
             vec![
                 index(x, y, w),
-                e.get(&index(x, y, w)).map(|v| v.0).unwrap_or(0xFF) as u8,
-                e.get(&index(x, y, w)).map(|v| v.1).unwrap_or(0xFF),
+                e.get(&index(x, y, w))
+                    .map(|v| v.0)
+                    .unwrap_or(SMALL_PATCH_SIZE as usize) as SmallIndexType,
+                e.get(&index(x, y, w))
+                    .map(|v| v.1)
+                    .unwrap_or(SMALL_PATCH_SIZE),
             ]
         };
         info_hexagon(
@@ -74,9 +78,9 @@ where
 fn info_hexagon<C>(
     context: &C,
     projection_count: u8,
-    projections: &impl Fn(&C, u8, u8, u8) -> Vec<u8>,
-    width: u8,
-    height: u8,
+    projections: &impl Fn(&C, SmallIndexType, SmallIndexType, SmallIndexType) -> Vec<SmallIndexType>,
+    width: SmallIndexType,
+    height: SmallIndexType,
     even: bool,
 ) {
     let mut indent = even;
@@ -85,7 +89,7 @@ fn info_hexagon<C>(
         let xx = format!("  {x:02x}");
         header.push_str(&xx);
     }
-    let ko = 0xFFu8;
+    let ko = SMALL_PATCH_SIZE;
     info!("{}", header);
     info!("");
     for y in 0..height {
@@ -115,6 +119,6 @@ fn info_hexagon<C>(
     }
 }
 
-fn index(x: u8, y: u8, w: u8) -> u8 {
+fn index(x: SmallIndexType, y: SmallIndexType, w: SmallIndexType) -> SmallIndexType {
     y * w + x
 }
